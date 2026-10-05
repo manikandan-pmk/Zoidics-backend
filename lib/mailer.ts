@@ -291,12 +291,12 @@ export async function sendCompanyContactEmail(data: ContactEmailData) {
     subject: `New Website Enquiry — ${data.name}`,
 
     attachments: [
-      {
-        filename: "zoidics-logo.png",
-        path: logoPath,
-        cid: "zoidics-logo",
-      },
-    ],
+  {
+    path: logoPath,
+    cid: "zoidics-logo",
+    contentDisposition: "inline",
+  },
+],
 
     html: `
       <!DOCTYPE html>

@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: "Access-Control-Allow-Origin",
-            value: "https://www.zoidics.com", // Replace with your frontend domain
+            value: process.env.ALLOWED_ORIGINS!, // Replace with your frontend domain
           },
           {
             key: "Access-Control-Allow-Methods",

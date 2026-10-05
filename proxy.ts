@@ -17,15 +17,16 @@ export type AuthPayload = {
   isAdmin: boolean;
 };
 
-export async function verifyAuthToken(token: string): Promise<AuthPayload> {
+export async function verifyAuthToken(
+  token: string
+): Promise<AuthPayload> {
   const { payload } = await jwtVerify(token, JWT_SECRET);
 
-
-console.log("========== JWT PAYLOAD ==========");
-console.log(payload);
-console.log("role:", payload.role);
-console.log("isAdmin:", payload.isAdmin);
-console.log("================================");
+  console.log("========== JWT PAYLOAD ==========");
+  console.log(payload);
+  console.log("role:", payload.role);
+  console.log("isAdmin:", payload.isAdmin);
+  console.log("================================");
 
   return {
     id: String(payload.id),
@@ -37,6 +38,42 @@ console.log("================================");
 }
 
 export async function proxy(request: NextRequest) {
+
+  // =========================
+  // CORS
+  // =========================
+
+  const allowedOrigins = [
+    "https://zoidics.com",
+    "https://www.zoidics.com",
+  ];
+
+  const origin = request.headers.get("origin");
+
+  // Handle CORS preflight
+  if (
+    request.method === "OPTIONS" &&
+    origin &&
+    allowedOrigins.includes(origin)
+  ) {
+    return new NextResponse(null, {
+      status: 204,
+      headers: {
+        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Methods":
+          "GET, POST, PUT, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers":
+          "Content-Type, Authorization",
+        "Access-Control-Allow-Credentials": "true",
+        "Vary": "Origin",
+      },
+    });
+  }
+
+  // =========================
+  // JWT AUTH
+  // =========================
+
   const token = request.cookies.get("jwt")?.value;
 
   if (!token) {
@@ -50,12 +87,42 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(new URL("/", request.url));
     }
 
-    return NextResponse.next();
+    const response = NextResponse.next();
+
+    // Add CORS headers to API response
+    if (origin && allowedOrigins.includes(origin)) {
+      response.headers.set(
+        "Access-Control-Allow-Origin",
+        origin
+      );
+
+      response.headers.set(
+        "Access-Control-Allow-Methods",
+        "GET, POST, PUT, DELETE, OPTIONS"
+      );
+
+      response.headers.set(
+        "Access-Control-Allow-Headers",
+        "Content-Type, Authorization"
+      );
+
+      response.headers.set(
+        "Access-Control-Allow-Credentials",
+        "true"
+      );
+
+      response.headers.set("Vary", "Origin");
+    }
+
+    return response;
   } catch {
     return NextResponse.redirect(new URL("/", request.url));
   }
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*"],
+  matcher: [
+    "/api/:path*",
+    "/dashboard/:path*",
+  ],
 };
