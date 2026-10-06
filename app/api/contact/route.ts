@@ -18,7 +18,7 @@ const FRONTEND_URL = process.env.FRONTEND_URL || "https://zoidics.com";
 const corsHeaders = {
   "Access-Control-Allow-Origin": FRONTEND_URL,
   "Access-Control-Allow-Credentials": "true",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
@@ -188,6 +188,131 @@ export async function POST(request: Request) {
       {
         success: false,
         message: "Unable to submit your enquiry. Please try again.",
+      },
+      {
+        status: 500,
+        headers: corsHeaders,
+      },
+    );
+  }
+}
+
+/* =========================================================
+   PUT - UPDATE CONTACT
+   ADMIN ONLY
+========================================================= */
+
+export async function PUT(request: NextRequest) {
+  try {
+    const secret = process.env.JWT_SECRET;
+
+    if (!secret) {
+      console.error("JWT_SECRET is not configured");
+
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Server authentication configuration error.",
+        },
+        {
+          status: 500,
+          headers: corsHeaders,
+        },
+      );
+    }
+
+    const JWT_SECRET = new TextEncoder().encode(secret);
+    const token = request.cookies.get("jwt")?.value;
+
+    if (!token) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized." },
+        { status: 401, headers: corsHeaders },
+      );
+    }
+
+    const { payload } = await jwtVerify(token, JWT_SECRET);
+
+    if (payload.role !== "admin" || payload.isAdmin !== true) {
+      return NextResponse.json(
+        { success: false, message: "Admin access required." },
+        { status: 403, headers: corsHeaders },
+      );
+    }
+
+    const body = await request.json();
+    const id = Number(body.id);
+    const status = body.status;
+    const isDeal = body.isDeal;
+
+    const allowedStatuses = [
+      "new",
+      "contacted",
+      "in_progress",
+      "resolved",
+      "closed",
+    ];
+
+    if (!Number.isInteger(id) || id <= 0) {
+      return NextResponse.json(
+        { success: false, message: "Valid contact ID is required." },
+        { status: 400, headers: corsHeaders },
+      );
+    }
+
+    if (!allowedStatuses.includes(status)) {
+      return NextResponse.json(
+        { success: false, message: "Invalid contact status." },
+        { status: 400, headers: corsHeaders },
+      );
+    }
+
+    if (typeof isDeal !== "boolean") {
+      return NextResponse.json(
+        { success: false, message: "Deal value must be true or false." },
+        { status: 400, headers: corsHeaders },
+      );
+    }
+
+    const database = await connectDatabase();
+    const contactRepository = database.getRepository(Contact);
+
+    const contact = await contactRepository.findOne({
+      where: { id },
+    });
+
+    if (!contact) {
+      return NextResponse.json(
+        { success: false, message: "Contact enquiry not found." },
+        { status: 404, headers: corsHeaders },
+      );
+    }
+
+    contact.status = status;
+    contact.isDeal = isDeal;
+
+    const updatedContact = await contactRepository.save(contact);
+
+    console.log("Contact updated successfully:", updatedContact.id);
+
+    return NextResponse.json(
+      {
+        success: true,
+        message: "Contact enquiry updated successfully.",
+        contact: updatedContact,
+      },
+      {
+        status: 200,
+        headers: corsHeaders,
+      },
+    );
+  } catch (error) {
+    console.error("UPDATE CONTACT ERROR:", error);
+
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Failed to update contact enquiry.",
       },
       {
         status: 500,

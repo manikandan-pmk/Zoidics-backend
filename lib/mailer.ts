@@ -40,7 +40,7 @@ const transporter = nodemailer.createTransport({
    ZOIDICS LOGO
 ========================================================= */
 
-const logoPath = path.join(process.cwd(), "public", "logo.png");
+const logoPath = path.join(process.cwd(), "public", "logo1.png");
 
 /* =========================================================
    TYPES
@@ -482,21 +482,10 @@ export async function sendClientContactEmail(data: ContactEmailData) {
 
     subject: "We received your enquiry — Zoidics Software Solutions",
 
-    attachments: [
-      {
-        filename: "zoidics-logo.png",
-        path: logoPath,
-        cid: "zoidics-logo",
-      },
-    ],
-
     html: `
       <!DOCTYPE html>
-
       <html>
-
         <head>
-
           <meta charset="UTF-8" />
 
           <meta
@@ -507,46 +496,35 @@ export async function sendClientContactEmail(data: ContactEmailData) {
           <style>
             ${emailStyles}
           </style>
-
         </head>
 
         <body>
-
           <div class="wrapper">
-
             <div class="container">
 
               <!-- ZOIDICS HEADER -->
-
               <div class="header">
-
                 <img
-                  src="cid:zoidics-logo"
+                  src="https://zoidics.com/logo1.png"
                   alt="Zoidics Software Solutions"
                   class="logo"
                 />
-
               </div>
 
-
               <!-- MAIN CONTENT -->
-
               <div class="content">
 
                 <p class="eyebrow">
                   Thank You
                 </p>
 
-
                 <h1 class="title">
                   We received your enquiry
                 </h1>
 
-
                 <p class="text">
                   Hi ${safeName},
                 </p>
-
 
                 <p class="text">
                   Thank you for reaching out to
@@ -554,19 +532,14 @@ export async function sendClientContactEmail(data: ContactEmailData) {
                   We have successfully received your enquiry.
                 </p>
 
-
                 <p class="text">
                   Our team will review your requirements
                   and get back to you as soon as possible.
                 </p>
 
-
                 <!-- ENQUIRY SUBJECT -->
-
                 <div class="details">
-
                   <div class="detail-row">
-
                     <p class="label">
                       Enquiry Subject
                     </p>
@@ -574,16 +547,11 @@ export async function sendClientContactEmail(data: ContactEmailData) {
                     <p class="value">
                       ${safeSubject}
                     </p>
-
                   </div>
-
                 </div>
 
-
                 <!-- ABOUT ZOIDICS -->
-
                 <div class="about-section">
-
                   <p class="about-title">
                     About Zoidics
                   </p>
@@ -594,12 +562,9 @@ export async function sendClientContactEmail(data: ContactEmailData) {
                     startups, and individuals turn ideas
                     into modern digital products.
                   </p>
-
                 </div>
 
-
                 <!-- SERVICES -->
-
                 <p class="text">
                   We specialize in Web Development,
                   Mobile App Development, AI Integration,
@@ -609,11 +574,8 @@ export async function sendClientContactEmail(data: ContactEmailData) {
 
               </div>
 
-
               <!-- FOOTER -->
-
               <div class="footer">
-
                 <p class="footer-text">
                   From idea → design → development → deployment,
                   we're here to help turn your digital vision
@@ -623,15 +585,11 @@ export async function sendClientContactEmail(data: ContactEmailData) {
                 <p class="footer-brand">
                   Zoidics Software Solutions
                 </p>
-
               </div>
 
             </div>
-
           </div>
-
         </body>
-
       </html>
     `,
   });

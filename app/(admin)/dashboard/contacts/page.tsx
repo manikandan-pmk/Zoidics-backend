@@ -60,7 +60,7 @@ export default function ContactsPage() {
       const data = response.data;
 
       if (response.data && data.success) {
-        const newContacts = data.contacts || [];
+        const newContacts: Contact[] = data.contacts || [];
 
         setContacts(newContacts);
 
@@ -74,8 +74,9 @@ export default function ContactsPage() {
           }
 
           return (
-            newContacts.find((item: Contact) => item.id === current.id) ||
-            current
+            newContacts.find(
+              (item: Contact) => item.id === current.id
+            ) || current
           );
         });
       } else {
@@ -114,6 +115,61 @@ export default function ContactsPage() {
 
   const handleRefresh = () => {
     fetchContacts(true);
+  };
+
+  /* =====================================================
+     UPDATE CONTACT
+     STATUS + DEAL
+  ===================================================== */
+
+  const updateContact = async (
+    contactId: number,
+    updates: {
+      status?: string;
+      isDeal?: boolean;
+    }
+  ) => {
+    try {
+      const response = await axios.put(
+        "/api/contact",
+        {
+          id: contactId,
+          ...updates,
+        },
+        {
+          withCredentials: true,
+        }
+      );
+
+      const data = response.data;
+
+      if (!data?.success) {
+        throw new Error(data?.message || "Failed to update contact");
+      }
+
+      const updatedContact: Contact = data.contact;
+
+      // Update table data
+      setContacts((currentContacts) =>
+        currentContacts.map((contact) =>
+          contact.id === contactId
+            ? updatedContact
+            : contact
+        )
+      );
+
+      // Update drawer data
+      setSelectedContact((current) =>
+        current && current.id === contactId
+          ? updatedContact
+          : current
+      );
+    } catch (error) {
+      console.error("Failed to update contact:", error);
+
+      // Reload server data if update failed
+      fetchContacts(true);
+    }
   };
 
   /* =====================================================
@@ -156,16 +212,16 @@ export default function ContactsPage() {
      DATE FORMAT
   ===================================================== */
 
-const formatDate = (date: string) => {
-  return new Date(date).toLocaleString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true,
-  });
-};
+  const formatDate = (date: string) => {
+    return new Date(date).toLocaleString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  };
 
   return (
     <>
@@ -280,7 +336,10 @@ const formatDate = (date: string) => {
 
             {loading ? (
               <div className="flex items-center justify-center gap-3 px-6 py-20 text-sm font-medium text-black/40">
-                <RefreshCw size={20} className="animate-spin text-[#ff8a24]" />
+                <RefreshCw
+                  size={20}
+                  className="animate-spin text-[#ff8a24]"
+                />
                 Loading enquiries...
               </div>
             ) : filteredContacts.length === 0 ? (
@@ -546,7 +605,10 @@ const formatDate = (date: string) => {
 
                 <div className="divide-y divide-black/5 rounded-[1.25rem] border border-black/10 overflow-hidden shadow-sm">
                   <div className="flex gap-4 p-5 bg-white">
-                    <Mail size={18} className="mt-0.5 shrink-0 text-black/40" />
+                    <Mail
+                      size={18}
+                      className="mt-0.5 shrink-0 text-black/40"
+                    />
 
                     <div className="min-w-0">
                       <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-black/40">
@@ -619,6 +681,8 @@ const formatDate = (date: string) => {
               {/* STATUS + DATE */}
 
               <section className="grid grid-cols-2 gap-4">
+                {/* STATUS */}
+
                 <div className="rounded-[1.25rem] border border-black/5 bg-[#fafafa] p-5 shadow-sm">
                   <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-black/40">
                     Status
@@ -627,9 +691,21 @@ const formatDate = (date: string) => {
                   <select
                     value={selectedContact.status}
                     onChange={(event) => {
-                      setSelectedContact({
-                        ...selectedContact,
-                        status: event.target.value,
+                      const newStatus = event.target.value;
+
+                      setSelectedContact((current) => {
+                        if (!current) {
+                          return current;
+                        }
+
+                        return {
+                          ...current,
+                          status: newStatus,
+                        };
+                      });
+
+                      updateContact(selectedContact.id, {
+                        status: newStatus,
                       });
                     }}
                     onClick={(event) => event.stopPropagation()}
@@ -643,28 +719,42 @@ const formatDate = (date: string) => {
                   </select>
                 </div>
 
+                {/* DEAL */}
+
                 <div className="rounded-[1.25rem] border border-black/5 bg-[#fafafa] p-5 shadow-sm">
-  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-black/40">
-    Deal
-  </p>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-black/40">
+                    Deal
+                  </p>
 
-  <select
-    value={selectedContact.isDeal ? "yes" : "no"}
-    onChange={(event) => {
-      setSelectedContact({
-        ...selectedContact,
-        isDeal: event.target.value === "yes",
-      });
-    }}
-    onClick={(event) => event.stopPropagation()}
-    className="mt-2.5 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-xs font-bold uppercase tracking-wide text-[#080808] outline-none transition-all focus:border-[#ffb646] focus:ring-4 focus:ring-[#ffb646]/10"
-  >
-    <option value="no">No</option>
-    <option value="yes">Yes</option>
-  </select>
-</div>
+                  <select
+                    value={selectedContact.isDeal ? "yes" : "no"}
+                    onChange={(event) => {
+                      const newIsDeal = event.target.value === "yes";
 
-                
+                      setSelectedContact((current) => {
+                        if (!current) {
+                          return current;
+                        }
+
+                        return {
+                          ...current,
+                          isDeal: newIsDeal,
+                        };
+                      });
+
+                      updateContact(selectedContact.id, {
+                        isDeal: newIsDeal,
+                      });
+                    }}
+                    onClick={(event) => event.stopPropagation()}
+                    className="mt-2.5 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-xs font-bold uppercase tracking-wide text-[#080808] outline-none transition-all focus:border-[#ffb646] focus:ring-4 focus:ring-[#ffb646]/10"
+                  >
+                    <option value="no">No</option>
+                    <option value="yes">Yes</option>
+                  </select>
+                </div>
+
+                {/* SUBMITTED */}
 
                 <div className="rounded-[1.25rem] border border-black/5 bg-[#fafafa] p-5 shadow-sm">
                   <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-black/40">

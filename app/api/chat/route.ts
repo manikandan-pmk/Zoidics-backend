@@ -650,20 +650,20 @@ async function submitEnquiry(lead: Lead): Promise<boolean> {
   }
 
   try {
-  const response = await axios.post(url, {
-    source: "zoidics-chatbot",
-    submittedAt: new Date().toISOString(),
-    name: lead.name,
-    email: lead.email,
-    phone: lead.phone,
-    service: lead.service,
-    requirement: lead.requirement,
-    timeline: lead.timeline ?? NOT_PROVIDED,
-    budget: lead.budget ?? NOT_PROVIDED,
-  });
+    const response = await axios.post(url, {
+      source: "zoidics-chatbot",
+      submittedAt: new Date().toISOString(),
+      name: lead.name,
+      email: lead.email,
+      phone: lead.phone,
+      service: lead.service,
+      requirement: lead.requirement,
+      timeline: lead.timeline ?? NOT_PROVIDED,
+      budget: lead.budget ?? NOT_PROVIDED,
+    });
 
-  return response.status >= 200 && response.status < 300;
-} catch (error) {
+    return response.status >= 200 && response.status < 300;
+  } catch (error) {
     console.error("Enquiry submission error:", error);
     return false;
   }
@@ -676,18 +676,33 @@ async function submitEnquiry(lead: Lead): Promise<boolean> {
 async function getOrCreateChatSession(
   req: NextRequest,
   lead: Lead,
+  clientSessionId?: number | null,
 ): Promise<ChatSession> {
   const database = await connectDatabase();
   const repository = database.getRepository(ChatSession);
 
+  // Prefer the session ID explicitly sent by the chatbot client.
+  // This prevents a new ChatSession from being created when the
+  // browser does not send the cookie on a cross-origin API request.
+  if (Number.isInteger(clientSessionId) && Number(clientSessionId) > 0) {
+    const existingSession = await repository.findOne({
+      where: { id: Number(clientSessionId) },
+    });
+
+    if (existingSession) {
+      return existingSession;
+    }
+  }
+
+  // Cookie remains as a second fallback.
   const cookieValue = req.cookies.get("chat_session_id")?.value;
 
   if (cookieValue) {
-    const sessionId = Number(cookieValue);
+    const cookieSessionId = Number(cookieValue);
 
-    if (Number.isInteger(sessionId) && sessionId > 0) {
+    if (Number.isInteger(cookieSessionId) && cookieSessionId > 0) {
       const existingSession = await repository.findOne({
-        where: { id: sessionId },
+        where: { id: cookieSessionId },
       });
 
       if (existingSession) {
@@ -758,6 +773,7 @@ async function createChatResponse(
 
   const response = NextResponse.json({
     success: true,
+    sessionId: session.id,
     reply,
     nextStage,
     lead,
@@ -798,7 +814,12 @@ export async function POST(req: NextRequest) {
     /* -------------------------------------------------------------- */
     /* Get/create the database chat session                            */
     /* -------------------------------------------------------------- */
-    const session = await getOrCreateChatSession(req, lead);
+    const clientSessionId =
+      Number.isInteger(Number(body?.sessionId)) && Number(body?.sessionId) > 0
+        ? Number(body.sessionId)
+        : null;
+
+    const session = await getOrCreateChatSession(req, lead, clientSessionId);
 
     /* Save the visitor's message immediately.                         */
     await saveChatMessage(session.id, "user", message);
@@ -807,13 +828,7 @@ export async function POST(req: NextRequest) {
     if (incomingStage === "confirmed") {
       const reply = await generateReply("confirmed", lead, history, message);
 
-      return createChatResponse(
-        req,
-        session,
-        lead,
-        reply,
-        "confirmed",
-      );
+      return createChatResponse(req, session, lead, reply, "confirmed");
     }
 
     /* ---- Summary shown: waiting for confirmation ---- */
@@ -824,13 +839,7 @@ export async function POST(req: NextRequest) {
         if (!ok) {
           const reply = `We were unable to submit your enquiry at the moment. Please try confirming again in a few minutes, or email us directly at ${CONTACT_EMAIL}.`;
 
-          return createChatResponse(
-            req,
-            session,
-            lead,
-            reply,
-            "summary",
-          );
+          return createChatResponse(req, session, lead, reply, "summary");
         }
 
         lead = { ...lead, submitted: true };
@@ -842,26 +851,14 @@ Our team will review your requirements and contact you using the details provide
 Zoidics
 ${CONTACT_EMAIL}`;
 
-        return createChatResponse(
-          req,
-          session,
-          lead,
-          reply,
-          "confirmed",
-        );
+        return createChatResponse(req, session, lead, reply, "confirmed");
       }
 
       if (isNegative(message)) {
         const reply =
           "Certainly. What would you like to change? You can tell me the correct detail and I will update the summary.";
 
-        return createChatResponse(
-          req,
-          session,
-          lead,
-          reply,
-          "summary",
-        );
+        return createChatResponse(req, session, lead, reply, "summary");
       }
 
       // The visitor either corrected something or asked a question.
@@ -872,25 +869,13 @@ ${CONTACT_EMAIL}`;
       if (leadSnapshot(updated) !== before) {
         const reply = `Thank you, I have updated your details.\n\n${buildSummary(updated)}`;
 
-        return createChatResponse(
-          req,
-          session,
-          updated,
-          reply,
-          "summary",
-        );
+        return createChatResponse(req, session, updated, reply, "summary");
       }
 
       const answer = await generateReply("summary", lead, history, message);
       const reply = `${answer}\n\nWould you like me to confirm this enquiry for the Zoidics team?`;
 
-      return createChatResponse(
-        req,
-        session,
-        lead,
-        reply,
-        "summary",
-      );
+      return createChatResponse(req, session, lead, reply, "summary");
     }
 
     /* ---- Normal collection flow ---- */
@@ -904,30 +889,19 @@ ${CONTACT_EMAIL}`;
 
       const reply = buildSummary(lead);
 
-      return createChatResponse(
-        req,
-        session,
-        lead,
-        reply,
-        "summary",
-      );
+      return createChatResponse(req, session, lead, reply, "summary");
     }
 
     const reply = await generateReply(stage, lead, history, message);
 
-    return createChatResponse(
-      req,
-      session,
-      lead,
-      reply,
-      stage,
-    );
+    return createChatResponse(req, session, lead, reply, stage);
   } catch (error) {
     console.error("Chat API error:", error);
 
     return NextResponse.json(
       {
         success: false,
+        sessionId: null,
         error:
           "Unable to process your request at the moment. Please try again.",
       },
@@ -935,8 +909,6 @@ ${CONTACT_EMAIL}`;
     );
   }
 }
-
-
 
 export async function GET() {
   try {
