@@ -1,5 +1,5 @@
+
 import nodemailer from "nodemailer";
-import path from "path";
 
 /* =========================================================
    ENVIRONMENT
@@ -40,7 +40,7 @@ const transporter = nodemailer.createTransport({
    ZOIDICS LOGO
 ========================================================= */
 
-const logoPath = path.join(process.cwd(), "public", "logo1.png");
+const logoUrl = "https://api.zoidics.com/logo1.png";
 
 /* =========================================================
    TYPES
@@ -242,7 +242,6 @@ const emailStyles = `
   }
 
   @media only screen and (max-width: 600px) {
-
     .wrapper {
       padding: 20px 10px;
     }
@@ -274,7 +273,9 @@ const emailStyles = `
    ZOIDICS RECEIVES THE ENQUIRY
 ========================================================= */
 
-export async function sendCompanyContactEmail(data: ContactEmailData) {
+export async function sendCompanyContactEmail(
+  data: ContactEmailData,
+) {
   const safeName = escapeHtml(data.name);
   const safeEmail = escapeHtml(data.email);
   const safePhone = escapeHtml(data.phone || "Not provided");
@@ -289,14 +290,6 @@ export async function sendCompanyContactEmail(data: ContactEmailData) {
     replyTo: data.email,
 
     subject: `New Website Enquiry — ${data.name}`,
-
-    attachments: [
-  {
-    path: logoPath,
-    cid: "zoidics-logo",
-    contentDisposition: "inline",
-  },
-],
 
     html: `
       <!DOCTYPE html>
@@ -329,13 +322,12 @@ export async function sendCompanyContactEmail(data: ContactEmailData) {
               <div class="header">
 
                 <img
-                  src="cid:zoidics-logo"
+                  src="${logoUrl}"
                   alt="Zoidics Software Solutions"
                   class="logo"
                 />
 
               </div>
-
 
               <!-- CONTENT -->
 
@@ -354,7 +346,6 @@ export async function sendCompanyContactEmail(data: ContactEmailData) {
                   through the Zoidics website.
                 </p>
 
-
                 <!-- CONTACT DETAILS -->
 
                 <div class="details">
@@ -371,7 +362,6 @@ export async function sendCompanyContactEmail(data: ContactEmailData) {
 
                   </div>
 
-
                   <div class="detail-row">
 
                     <p class="label">
@@ -384,7 +374,6 @@ export async function sendCompanyContactEmail(data: ContactEmailData) {
 
                   </div>
 
-
                   <div class="detail-row">
 
                     <p class="label">
@@ -396,7 +385,6 @@ export async function sendCompanyContactEmail(data: ContactEmailData) {
                     </p>
 
                   </div>
-
 
                   <div class="detail-row">
 
@@ -412,7 +400,6 @@ export async function sendCompanyContactEmail(data: ContactEmailData) {
 
                 </div>
 
-
                 <!-- MESSAGE -->
 
                 <div class="message-box">
@@ -427,7 +414,6 @@ export async function sendCompanyContactEmail(data: ContactEmailData) {
 
                 </div>
 
-
                 <!-- REPLY BUTTON -->
 
                 <a
@@ -438,7 +424,6 @@ export async function sendCompanyContactEmail(data: ContactEmailData) {
                 </a>
 
               </div>
-
 
               <!-- FOOTER -->
 
@@ -471,7 +456,9 @@ export async function sendCompanyContactEmail(data: ContactEmailData) {
    CLIENT RECEIVES CONFIRMATION
 ========================================================= */
 
-export async function sendClientContactEmail(data: ContactEmailData) {
+export async function sendClientContactEmail(
+  data: ContactEmailData,
+) {
   const safeName = escapeHtml(data.name);
   const safeSubject = escapeHtml(data.subject);
 
@@ -484,8 +471,11 @@ export async function sendClientContactEmail(data: ContactEmailData) {
 
     html: `
       <!DOCTYPE html>
+
       <html>
+
         <head>
+
           <meta charset="UTF-8" />
 
           <meta
@@ -496,22 +486,29 @@ export async function sendClientContactEmail(data: ContactEmailData) {
           <style>
             ${emailStyles}
           </style>
+
         </head>
 
         <body>
+
           <div class="wrapper">
+
             <div class="container">
 
               <!-- ZOIDICS HEADER -->
+
               <div class="header">
+
                 <img
-                  src="https://zoidics.com/logo1.png"
+                  src="${logoUrl}"
                   alt="Zoidics Software Solutions"
                   class="logo"
                 />
+
               </div>
 
               <!-- MAIN CONTENT -->
+
               <div class="content">
 
                 <p class="eyebrow">
@@ -538,8 +535,11 @@ export async function sendClientContactEmail(data: ContactEmailData) {
                 </p>
 
                 <!-- ENQUIRY SUBJECT -->
+
                 <div class="details">
+
                   <div class="detail-row">
+
                     <p class="label">
                       Enquiry Subject
                     </p>
@@ -547,11 +547,15 @@ export async function sendClientContactEmail(data: ContactEmailData) {
                     <p class="value">
                       ${safeSubject}
                     </p>
+
                   </div>
+
                 </div>
 
                 <!-- ABOUT ZOIDICS -->
+
                 <div class="about-section">
+
                   <p class="about-title">
                     About Zoidics
                   </p>
@@ -562,9 +566,11 @@ export async function sendClientContactEmail(data: ContactEmailData) {
                     startups, and individuals turn ideas
                     into modern digital products.
                   </p>
+
                 </div>
 
                 <!-- SERVICES -->
+
                 <p class="text">
                   We specialize in Web Development,
                   Mobile App Development, AI Integration,
@@ -575,7 +581,9 @@ export async function sendClientContactEmail(data: ContactEmailData) {
               </div>
 
               <!-- FOOTER -->
+
               <div class="footer">
+
                 <p class="footer-text">
                   From idea → design → development → deployment,
                   we're here to help turn your digital vision
@@ -585,11 +593,15 @@ export async function sendClientContactEmail(data: ContactEmailData) {
                 <p class="footer-brand">
                   Zoidics Software Solutions
                 </p>
+
               </div>
 
             </div>
+
           </div>
+
         </body>
+
       </html>
     `,
   });
