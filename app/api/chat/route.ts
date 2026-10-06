@@ -631,42 +631,23 @@ By confirming, you agree that Zoidics may use these details to contact you about
  * Replace this function with an email or database call if you prefer.
  */
 async function submitEnquiry(lead: Lead): Promise<boolean> {
-  const url = process.env.ENQUIRY_WEBHOOK_URL;
-
-  if (!url) {
-    console.error(
-      "ENQUIRY_WEBHOOK_URL is not configured. Enquiry was NOT submitted.",
-    );
-    return false;
-  }
-
   if (
     !lead.email ||
     !isValidEmail(lead.email) ||
     !lead.phone ||
     !isValidPhone(lead.phone)
   ) {
-    return false;
-  }
-
-  try {
-    const response = await axios.post(url, {
-      source: "zoidics-chatbot",
-      submittedAt: new Date().toISOString(),
-      name: lead.name,
+    console.error("Invalid enquiry contact details:", {
       email: lead.email,
       phone: lead.phone,
-      service: lead.service,
-      requirement: lead.requirement,
-      timeline: lead.timeline ?? NOT_PROVIDED,
-      budget: lead.budget ?? NOT_PROVIDED,
     });
 
-    return response.status >= 200 && response.status < 300;
-  } catch (error) {
-    console.error("Enquiry submission error:", error);
     return false;
   }
+
+  // No webhook required.
+  // The enquiry is already stored in ChatSession.
+  return true;
 }
 
 /* ------------------------------------------------------------------ */
