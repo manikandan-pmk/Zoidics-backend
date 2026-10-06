@@ -23,6 +23,7 @@ type Contact = {
   subject: string;
   message: string;
   status: string;
+  isDeal: boolean;
   createdAt: string;
 };
 
@@ -50,13 +51,13 @@ export default function ContactsPage() {
       }
 
       const response = await axios.get("/api/contact", {
-  withCredentials: true,
-  headers: {
-    "Cache-Control": "no-cache",
-  },
-});
+        withCredentials: true,
+        headers: {
+          "Cache-Control": "no-cache",
+        },
+      });
 
-const data = response.data;
+      const data = response.data;
 
       if (response.data && data.success) {
         const newContacts = data.contacts || [];
@@ -155,13 +156,16 @@ const data = response.data;
      DATE FORMAT
   ===================================================== */
 
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString("en-IN", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-  };
+const formatDate = (date: string) => {
+  return new Date(date).toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+};
 
   return (
     <>
@@ -620,18 +624,47 @@ const data = response.data;
                     Status
                   </p>
 
-                  <span
-                    className={`mt-2.5 inline-flex rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-wide ${
-                      selectedContact.status === "new"
-                        ? "bg-[#ffb646]/10 text-[#ff8a24] border-[#ffb646]/20"
-                        : selectedContact.status === "replied"
-                          ? "bg-green-50 text-green-600 border-green-100"
-                          : "bg-black/5 text-black/50 border-black/10"
-                    }`}
+                  <select
+                    value={selectedContact.status}
+                    onChange={(event) => {
+                      setSelectedContact({
+                        ...selectedContact,
+                        status: event.target.value,
+                      });
+                    }}
+                    onClick={(event) => event.stopPropagation()}
+                    className="mt-2.5 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-xs font-bold uppercase tracking-wide text-[#080808] outline-none transition-all focus:border-[#ffb646] focus:ring-4 focus:ring-[#ffb646]/10"
                   >
-                    {selectedContact.status}
-                  </span>
+                    <option value="new">New</option>
+                    <option value="contacted">Contacted</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="resolved">Resolved</option>
+                    <option value="closed">Closed</option>
+                  </select>
                 </div>
+
+                <div className="rounded-[1.25rem] border border-black/5 bg-[#fafafa] p-5 shadow-sm">
+  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-black/40">
+    Deal
+  </p>
+
+  <select
+    value={selectedContact.isDeal ? "yes" : "no"}
+    onChange={(event) => {
+      setSelectedContact({
+        ...selectedContact,
+        isDeal: event.target.value === "yes",
+      });
+    }}
+    onClick={(event) => event.stopPropagation()}
+    className="mt-2.5 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-xs font-bold uppercase tracking-wide text-[#080808] outline-none transition-all focus:border-[#ffb646] focus:ring-4 focus:ring-[#ffb646]/10"
+  >
+    <option value="no">No</option>
+    <option value="yes">Yes</option>
+  </select>
+</div>
+
+                
 
                 <div className="rounded-[1.25rem] border border-black/5 bg-[#fafafa] p-5 shadow-sm">
                   <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-black/40">

@@ -127,7 +127,15 @@ export default function ChatbotLeadsPage() {
         withCredentials: true,
       });
       console.log("Chatbot leads response:", response.data);
-      setLeads(response.data?.chats ?? []);
+      
+      const rawChats: ChatLead[] = response.data?.chats ?? [];
+      
+      // FIX: Deduplicate leads by ID to ensure one chat session = one row
+      const uniqueChats = Array.from(
+        new Map(rawChats.map((chat) => [chat.id, chat])).values()
+      );
+
+      setLeads(uniqueChats);
     } catch (error) {
       console.error("Chatbot leads error:", error);
       if (axios.isAxiosError(error)) {

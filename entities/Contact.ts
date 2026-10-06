@@ -41,12 +41,19 @@ export class Contact {
   })
   message!: string;
 
+  // Contact enquiry status
   @Column({
     type: "varchar",
     length: 20,
     default: "new",
   })
-  status!: string;
+  status!: "new" | "contacted" | "in_progress" | "resolved" | "closed";
+
+    @Column({
+    type: "boolean",
+    default: false,
+  })
+  isDeal!: boolean;
 
   @CreateDateColumn()
   createdAt!: Date;

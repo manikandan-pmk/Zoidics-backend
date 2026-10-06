@@ -2,15 +2,25 @@
 
 import Link from "next/link";
 import { ArrowLeft, ImagePlus, Plus, X } from "lucide-react";
-import { useState } from "react";
+import { ChangeEvent, FormEvent, useState } from "react";
+import { useRouter } from "next/navigation";
+import axios from "axios";
 
 export default function NewProjectPage() {
+  const router = useRouter();
+
   const [technologies, setTechnologies] = useState<string[]>([
     "React",
     "TypeScript",
   ]);
 
   const [technologyInput, setTechnologyInput] = useState("");
+  const [image, setImage] = useState<File | null>(null);
+
+  const [isPublished, setIsPublished] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
   const addTechnology = () => {
     const value = technologyInput.trim();
@@ -26,6 +36,85 @@ export default function NewProjectPage() {
 
   const removeTechnology = (technology: string) => {
     setTechnologies(technologies.filter((item) => item !== technology));
+  };
+
+  const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      setImage(null);
+      return;
+    }
+
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+      setErrorMessage("Only PNG, JPG and WEBP images are allowed.");
+      event.target.value = "";
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setErrorMessage("Image size must be less than 5MB.");
+      event.target.value = "";
+      return;
+    }
+
+    setErrorMessage("");
+    setImage(file);
+  };
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    setLoading(true);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    try {
+      const form = event.currentTarget;
+
+      const formData = new FormData(form);
+
+      // Add technologies as comma-separated string
+      formData.set("technologies", technologies.join(","));
+
+      // Add publish status
+      formData.set("isPublished", String(isPublished));
+
+      // Make sure image is included
+      if (image) {
+        formData.set("image", image);
+      }
+
+      const response = await axios.post("/api/projects", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      const data = response.data;
+
+      if (!data?.success) {
+        throw new Error(data?.message || "Failed to create project");
+      }
+
+      setSuccessMessage("Project created successfully!");
+
+      // Redirect after successful creation
+      setTimeout(() => {
+        router.push("/dashboard/projects");
+        router.refresh();
+      }, 800);
+    } catch (error) {
+      console.error("CREATE PROJECT ERROR:", error);
+
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Something went wrong while creating the project.",
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -55,10 +144,23 @@ export default function NewProjectPage() {
         </div>
       </div>
 
+      {/* Success / Error */}
+      {errorMessage && (
+        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-semibold text-red-600">
+          {errorMessage}
+        </div>
+      )}
+
+      {successMessage && (
+        <div className="mb-6 rounded-xl border border-green-200 bg-green-50 px-5 py-4 text-sm font-semibold text-green-600">
+          {successMessage}
+        </div>
+      )}
+
       {/* Form */}
-      <form className="space-y-8">
+      <form onSubmit={handleSubmit} className="space-y-8">
         {/* Basic information */}
-        <section className="rounded-[1.5rem] border border-black/10 bg-white shadow-sm overflow-hidden">
+        <section className="overflow-hidden rounded-[1.5rem] border border-black/10 bg-white shadow-sm">
           <div className="border-b border-black/5 bg-[#f9f9f9]/50 px-6 py-5">
             <h2 className="font-bold text-[#080808]">Basic Information</h2>
 
@@ -67,7 +169,7 @@ export default function NewProjectPage() {
             </p>
           </div>
 
-          <div className="grid gap-8 p-6 md:grid-cols-2 sm:p-8">
+          <div className="grid gap-8 p-6 sm:p-8 md:grid-cols-2">
             {/* Project name */}
             <div className="md:col-span-2">
               <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-[#080808]/70">
@@ -75,9 +177,11 @@ export default function NewProjectPage() {
               </label>
 
               <input
+                name="title"
                 type="text"
+                required
                 placeholder="e.g. TuneTix"
-                className="h-12 w-full rounded-xl border border-black/10 bg-[#fafafa] px-4 text-sm font-semibold text-[#080808] outline-none transition-all placeholder:text-black/30 placeholder:font-medium focus:border-[#ffb646] focus:bg-white focus:ring-4 focus:ring-[#ffb646]/10"
+                className="h-12 w-full rounded-xl border border-black/10 bg-[#fafafa] px-4 text-sm font-semibold text-[#080808] outline-none transition-all placeholder:font-medium placeholder:text-black/30 focus:border-[#ffb646] focus:bg-white focus:ring-4 focus:ring-[#ffb646]/10"
               />
             </div>
 
@@ -90,11 +194,13 @@ export default function NewProjectPage() {
               <input
                 type="text"
                 placeholder="tunetix"
-                className="h-12 w-full rounded-xl border border-black/10 bg-[#fafafa] px-4 text-sm font-semibold text-[#080808] outline-none transition-all placeholder:text-black/30 placeholder:font-medium focus:border-[#ffb646] focus:bg-white focus:ring-4 focus:ring-[#ffb646]/10"
+                value="auto-generated"
+                disabled
+                className="h-12 w-full cursor-not-allowed rounded-xl border border-black/10 bg-[#f5f5f5] px-4 text-sm font-semibold text-black/40 outline-none"
               />
 
               <p className="mt-2 text-[11px] font-medium text-black/45">
-                Used for your project URL.
+                Slug is automatically generated from the project name.
               </p>
             </div>
 
@@ -104,7 +210,12 @@ export default function NewProjectPage() {
                 Category *
               </label>
 
-              <select className="h-12 w-full rounded-xl border border-black/10 bg-[#fafafa] px-4 text-sm font-semibold text-[#080808] outline-none transition-all focus:border-[#ffb646] focus:bg-white focus:ring-4 focus:ring-[#ffb646]/10 cursor-pointer">
+              <select
+                name="category"
+                required
+                defaultValue=""
+                className="h-12 w-full cursor-pointer rounded-xl border border-black/10 bg-[#fafafa] px-4 text-sm font-semibold text-[#080808] outline-none transition-all focus:border-[#ffb646] focus:bg-white focus:ring-4 focus:ring-[#ffb646]/10"
+              >
                 <option value="">Select category</option>
                 <option>Web Development</option>
                 <option>E-commerce</option>
@@ -121,9 +232,11 @@ export default function NewProjectPage() {
               </label>
 
               <textarea
+                name="shortDescription"
+                required
                 rows={3}
                 placeholder="A short description of the project..."
-                className="w-full resize-none rounded-xl border border-black/10 bg-[#fafafa] px-4 py-3 text-sm font-semibold text-[#080808] outline-none transition-all placeholder:text-black/30 placeholder:font-medium focus:border-[#ffb646] focus:bg-white focus:ring-4 focus:ring-[#ffb646]/10"
+                className="w-full resize-none rounded-xl border border-black/10 bg-[#fafafa] px-4 py-3 text-sm font-semibold text-[#080808] outline-none transition-all placeholder:font-medium placeholder:text-black/30 focus:border-[#ffb646] focus:bg-white focus:ring-4 focus:ring-[#ffb646]/10"
               />
             </div>
 
@@ -134,16 +247,18 @@ export default function NewProjectPage() {
               </label>
 
               <textarea
+                name="description"
+                required
                 rows={7}
                 placeholder="Describe the project, your role, features, challenges and solution..."
-                className="w-full resize-none rounded-xl border border-black/10 bg-[#fafafa] px-4 py-3 text-sm font-medium leading-relaxed text-[#080808] outline-none transition-all placeholder:text-black/30 placeholder:font-medium focus:border-[#ffb646] focus:bg-white focus:ring-4 focus:ring-[#ffb646]/10"
+                className="w-full resize-none rounded-xl border border-black/10 bg-[#fafafa] px-4 py-3 text-sm font-medium leading-relaxed text-[#080808] outline-none transition-all placeholder:font-medium placeholder:text-black/30 focus:border-[#ffb646] focus:bg-white focus:ring-4 focus:ring-[#ffb646]/10"
               />
             </div>
           </div>
         </section>
 
         {/* Technologies */}
-        <section className="rounded-[1.5rem] border border-black/10 bg-white shadow-sm overflow-hidden">
+        <section className="overflow-hidden rounded-[1.5rem] border border-black/10 bg-white shadow-sm">
           <div className="border-b border-black/5 bg-[#f9f9f9]/50 px-6 py-5">
             <h2 className="font-bold text-[#080808]">Technologies</h2>
 
@@ -164,7 +279,7 @@ export default function NewProjectPage() {
                   }
                 }}
                 placeholder="e.g. Node.js"
-                className="h-12 flex-1 rounded-xl border border-black/10 bg-[#fafafa] px-4 text-sm font-semibold text-[#080808] outline-none transition-all placeholder:text-black/30 placeholder:font-medium focus:border-[#ffb646] focus:bg-white focus:ring-4 focus:ring-[#ffb646]/10"
+                className="h-12 flex-1 rounded-xl border border-black/10 bg-[#fafafa] px-4 text-sm font-semibold text-[#080808] outline-none transition-all placeholder:font-medium placeholder:text-black/30 focus:border-[#ffb646] focus:bg-white focus:ring-4 focus:ring-[#ffb646]/10"
               />
 
               <button
@@ -199,7 +314,7 @@ export default function NewProjectPage() {
         </section>
 
         {/* Links */}
-        <section className="rounded-[1.5rem] border border-black/10 bg-white shadow-sm overflow-hidden">
+        <section className="overflow-hidden rounded-[1.5rem] border border-black/10 bg-white shadow-sm">
           <div className="border-b border-black/5 bg-[#f9f9f9]/50 px-6 py-5">
             <h2 className="font-bold text-[#080808]">Project Link</h2>
 
@@ -215,16 +330,17 @@ export default function NewProjectPage() {
               </label>
 
               <input
+                name="liveUrl"
                 type="url"
                 placeholder="https://example.com"
-                className="h-12 w-full rounded-xl border border-black/10 bg-[#fafafa] px-4 text-sm font-semibold text-[#080808] outline-none transition-all placeholder:text-black/30 placeholder:font-medium focus:border-[#ffb646] focus:bg-white focus:ring-4 focus:ring-[#ffb646]/10"
+                className="h-12 w-full rounded-xl border border-black/10 bg-[#fafafa] px-4 text-sm font-semibold text-[#080808] outline-none transition-all placeholder:font-medium placeholder:text-black/30 focus:border-[#ffb646] focus:bg-white focus:ring-4 focus:ring-[#ffb646]/10"
               />
             </div>
           </div>
         </section>
 
         {/* Image */}
-        <section className="rounded-[1.5rem] border border-black/10 bg-white shadow-sm overflow-hidden">
+        <section className="overflow-hidden rounded-[1.5rem] border border-black/10 bg-white shadow-sm">
           <div className="border-b border-black/5 bg-[#f9f9f9]/50 px-6 py-5">
             <h2 className="font-bold text-[#080808]">Project Image</h2>
 
@@ -240,7 +356,7 @@ export default function NewProjectPage() {
               </div>
 
               <p className="text-sm font-bold text-[#080808]">
-                Upload project image
+                {image ? image.name : "Upload project image"}
               </p>
 
               <p className="mt-1.5 text-xs font-medium text-black/45">
@@ -250,6 +366,7 @@ export default function NewProjectPage() {
               <input
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
+                onChange={handleImageChange}
                 className="hidden"
               />
             </label>
@@ -257,7 +374,7 @@ export default function NewProjectPage() {
         </section>
 
         {/* Publishing */}
-        <section className="rounded-[1.5rem] border border-black/10 bg-white shadow-sm overflow-hidden">
+        <section className="overflow-hidden rounded-[1.5rem] border border-black/10 bg-white shadow-sm">
           <div className="border-b border-black/5 bg-[#f9f9f9]/50 px-6 py-5">
             <h2 className="font-bold text-[#080808]">Publishing</h2>
 
@@ -270,7 +387,8 @@ export default function NewProjectPage() {
             <label className="flex cursor-pointer items-center gap-4 rounded-[1.25rem] border border-black/10 bg-[#fafafa] p-5 transition-colors hover:border-[#ffb646]/50">
               <input
                 type="checkbox"
-                defaultChecked
+                checked={isPublished}
+                onChange={(event) => setIsPublished(event.target.checked)}
                 className="h-5 w-5 accent-[#ff8a24]"
               />
 
@@ -288,7 +406,7 @@ export default function NewProjectPage() {
         </section>
 
         {/* Actions */}
-        <div className="flex flex-col-reverse justify-end gap-4 sm:flex-row pt-4">
+        <div className="flex flex-col-reverse justify-end gap-4 pt-4 sm:flex-row">
           <Link
             href="/dashboard/projects"
             className="flex h-12 items-center justify-center rounded-xl border border-black/10 bg-white px-8 text-sm font-bold text-[#080808] transition-all hover:bg-black/5"
@@ -298,9 +416,10 @@ export default function NewProjectPage() {
 
           <button
             type="submit"
-            className="h-12 rounded-xl bg-[#080808] px-8 text-sm font-bold text-white transition-all hover:bg-[#ffb646] hover:text-[#080808] hover:shadow-lg hover:shadow-[#ffb646]/20 active:scale-[0.98]"
+            disabled={loading}
+            className="h-12 rounded-xl bg-[#080808] px-8 text-sm font-bold text-white transition-all hover:bg-[#ffb646] hover:text-[#080808] hover:shadow-lg hover:shadow-[#ffb646]/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Create Project
+            {loading ? "Creating..." : "Create Project"}
           </button>
         </div>
       </form>

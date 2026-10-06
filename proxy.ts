@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 
@@ -38,7 +39,6 @@ export async function verifyAuthToken(
 }
 
 export async function proxy(request: NextRequest) {
-
   // =========================
   // CORS
   // =========================
@@ -50,24 +50,122 @@ export async function proxy(request: NextRequest) {
 
   const origin = request.headers.get("origin");
 
-  // Handle CORS preflight
-  if (
-    request.method === "OPTIONS" &&
-    origin &&
-    allowedOrigins.includes(origin)
-  ) {
+  const corsHeaders: Record<string, string> = {};
+
+  if (origin && allowedOrigins.includes(origin)) {
+    corsHeaders["Access-Control-Allow-Origin"] = origin;
+    corsHeaders["Access-Control-Allow-Methods"] =
+      "GET, POST, PUT, DELETE, OPTIONS";
+    corsHeaders["Access-Control-Allow-Headers"] =
+      "Content-Type, Authorization";
+    corsHeaders["Access-Control-Allow-Credentials"] = "true";
+    corsHeaders["Vary"] = "Origin";
+  }
+
+  // =========================
+  // CORS PREFLIGHT
+  // =========================
+
+  if (request.method === "OPTIONS") {
     return new NextResponse(null, {
       status: 204,
-      headers: {
-        "Access-Control-Allow-Origin": origin,
-        "Access-Control-Allow-Methods":
-          "GET, POST, PUT, DELETE, OPTIONS",
-        "Access-Control-Allow-Headers":
-          "Content-Type, Authorization",
-        "Access-Control-Allow-Credentials": "true",
-        "Vary": "Origin",
-      },
+      headers: corsHeaders,
     });
+  }
+
+  const pathname = request.nextUrl.pathname;
+  const method = request.method;
+
+  // =========================
+  // PUBLIC GET API ROUTES
+  // =========================
+  // Only GET requests to these routes are public.
+  //
+  // GET /api/services
+  // GET /api/projects
+  // GET /api/testimonials
+  // GET /api/blogs
+  //
+  // POST /api/blogs -> ADMIN
+  // PUT /api/blogs -> ADMIN
+  // DELETE /api/blogs -> ADMIN
+
+  const publicGetPaths = [
+    "/api/services",
+    "/api/projects",
+    "/api/testimonials",
+    "/api/blogs",
+  ];
+
+  const isPublicGet =
+    method === "GET" &&
+    publicGetPaths.some(
+      (path) =>
+        pathname === path ||
+        pathname.startsWith(path + "/")
+    );
+
+  if (isPublicGet) {
+    const response = NextResponse.next();
+
+    Object.entries(corsHeaders).forEach(([key, value]) => {
+      response.headers.set(key, value);
+    });
+
+    return response;
+  }
+
+  // =========================
+  // PUBLIC POST API ROUTES
+  // =========================
+  // These POST APIs are used by
+  // visitors from the public website.
+  //
+  // POST /api/chat    -> PUBLIC
+  // POST /api/contact -> PUBLIC
+
+  const publicPostPaths = [
+    "/api/chat",
+    "/api/contact",
+  ];
+
+  const isPublicPost =
+    method === "POST" &&
+    publicPostPaths.some(
+      (path) =>
+        pathname === path ||
+        pathname.startsWith(path + "/")
+    );
+
+  if (isPublicPost) {
+    const response = NextResponse.next();
+
+    Object.entries(corsHeaders).forEach(([key, value]) => {
+      response.headers.set(key, value);
+    });
+
+    return response;
+  }
+
+  // =========================
+  // PUBLIC LOGIN
+  // =========================
+  // Login must be accessible without JWT.
+  //
+  // POST /api/auth/login -> PUBLIC
+
+  const isLogin =
+    pathname === "/api/auth/login" &&
+    method === "POST";
+
+  if (isLogin) {
+    const response = NextResponse.next();
+
+    Object.entries(corsHeaders).forEach(([key, value]) => {
+      response.headers.set(key, value);
+    });
+
+    return response;
   }
 
   // =========================
@@ -77,46 +175,39 @@ export async function proxy(request: NextRequest) {
   const token = request.cookies.get("jwt")?.value;
 
   if (!token) {
-    return NextResponse.redirect(new URL("/", request.url));
+    return NextResponse.redirect(
+      new URL("/", request.url)
+    );
   }
 
   try {
     const user = await verifyAuthToken(token);
 
+    // =========================
+    // ADMIN CHECK
+    // =========================
+
     if (!user.isAdmin || user.role !== "admin") {
-      return NextResponse.redirect(new URL("/", request.url));
+      return NextResponse.redirect(
+        new URL("/", request.url)
+      );
     }
+
+    // =========================
+    // AUTHENTICATED REQUEST
+    // =========================
 
     const response = NextResponse.next();
 
-    // Add CORS headers to API response
-    if (origin && allowedOrigins.includes(origin)) {
-      response.headers.set(
-        "Access-Control-Allow-Origin",
-        origin
-      );
-
-      response.headers.set(
-        "Access-Control-Allow-Methods",
-        "GET, POST, PUT, DELETE, OPTIONS"
-      );
-
-      response.headers.set(
-        "Access-Control-Allow-Headers",
-        "Content-Type, Authorization"
-      );
-
-      response.headers.set(
-        "Access-Control-Allow-Credentials",
-        "true"
-      );
-
-      response.headers.set("Vary", "Origin");
-    }
+    Object.entries(corsHeaders).forEach(([key, value]) => {
+      response.headers.set(key, value);
+    });
 
     return response;
   } catch {
-    return NextResponse.redirect(new URL("/", request.url));
+    return NextResponse.redirect(
+      new URL("/", request.url)
+    );
   }
 }
 
