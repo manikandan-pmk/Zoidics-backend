@@ -943,34 +943,15 @@ export async function GET() {
     const database = await connectDatabase();
 
     const sessionRepository = database.getRepository(ChatSession);
-    const messageRepository = database.getRepository(ChatMessageEntity);
 
-    // Get all chat sessions
+    // Return ONLY chat sessions here.
+    // Messages are loaded separately when the admin clicks View.
     const sessions = await sessionRepository.find({
       order: {
         updatedAt: "DESC",
       },
     });
 
-    // Get all chat messages
-    const messages = await messageRepository.find({
-      order: {
-        createdAt: "ASC",
-      },
-    });
-
-    // Group messages by session ID
-    const messagesBySession = new Map<number, ChatMessageEntity[]>();
-
-    for (const message of messages) {
-      const existing = messagesBySession.get(message.sessionId) ?? [];
-
-      existing.push(message);
-
-      messagesBySession.set(message.sessionId, existing);
-    }
-
-    // Attach messages to each session
     const chats = sessions.map((session) => ({
       id: session.id,
 
@@ -988,24 +969,20 @@ export async function GET() {
 
       createdAt: session.createdAt,
       updatedAt: session.updatedAt,
-
-      messages: messagesBySession.get(session.id) ?? [],
     }));
 
     return NextResponse.json({
       success: true,
-
       total: chats.length,
-
       chats,
     });
   } catch (error) {
-    console.error("GET chatbot leads error:", error);
+    console.error("GET chatbot sessions error:", error);
 
     return NextResponse.json(
       {
         success: false,
-        error: "Failed to fetch chatbot conversations",
+        error: "Failed to fetch chatbot sessions",
       },
       {
         status: 500,
