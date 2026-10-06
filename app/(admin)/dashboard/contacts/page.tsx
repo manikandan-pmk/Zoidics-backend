@@ -12,7 +12,6 @@ import {
   MessageSquare,
   RefreshCw,
 } from "lucide-react";
-
 import { useCallback, useEffect, useState } from "react";
 
 type Contact = {
@@ -34,9 +33,20 @@ export default function ContactsPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [selectedContact, setSelectedContact] =
+    useState<Contact | null>(null);
 
   const [showDetails, setShowDetails] = useState(false);
+
+  /*
+   * EDIT VALUES
+   *
+   * These values are changed inside the drawer.
+   * API is called only when Update button is clicked.
+   */
+  const [editStatus, setEditStatus] = useState("");
+  const [editIsDeal, setEditIsDeal] = useState(false);
+  const [updating, setUpdating] = useState(false);
 
   /* =====================================================
      FETCH CONTACTS
@@ -95,15 +105,12 @@ export default function ContactsPage() {
   ===================================================== */
 
   useEffect(() => {
-    // Load immediately
     fetchContacts();
 
-    // Automatically check every 5 seconds
     const interval = setInterval(() => {
       fetchContacts(true);
     }, 5000);
 
-    // Clear interval when page unmounts
     return () => {
       clearInterval(interval);
     };
@@ -125,16 +132,19 @@ export default function ContactsPage() {
   const updateContact = async (
     contactId: number,
     updates: {
-      status?: string;
-      isDeal?: boolean;
+      status: string;
+      isDeal: boolean;
     }
   ) => {
     try {
+      setUpdating(true);
+
       const response = await axios.put(
         "/api/contact",
         {
           id: contactId,
-          ...updates,
+          status: updates.status,
+          isDeal: updates.isDeal,
         },
         {
           withCredentials: true,
@@ -144,12 +154,16 @@ export default function ContactsPage() {
       const data = response.data;
 
       if (!data?.success) {
-        throw new Error(data?.message || "Failed to update contact");
+        throw new Error(
+          data?.message || "Failed to update contact"
+        );
       }
 
       const updatedContact: Contact = data.contact;
 
-      // Update table data
+      /*
+       * Update table
+       */
       setContacts((currentContacts) =>
         currentContacts.map((contact) =>
           contact.id === contactId
@@ -158,17 +172,29 @@ export default function ContactsPage() {
         )
       );
 
-      // Update drawer data
+      /*
+       * Update drawer
+       */
       setSelectedContact((current) =>
         current && current.id === contactId
           ? updatedContact
           : current
       );
+
+      /*
+       * Keep edit values synchronized
+       */
+      setEditStatus(updatedContact.status);
+      setEditIsDeal(updatedContact.isDeal);
     } catch (error) {
       console.error("Failed to update contact:", error);
 
-      // Reload server data if update failed
-      fetchContacts(true);
+      /*
+       * Reload server data if update failed
+       */
+      await fetchContacts(true);
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -178,6 +204,13 @@ export default function ContactsPage() {
 
   const openDetails = (contact: Contact) => {
     setSelectedContact(contact);
+
+    /*
+     * Initialize editable values
+     */
+    setEditStatus(contact.status);
+    setEditIsDeal(contact.isDeal);
+
     setShowDetails(true);
   };
 
@@ -204,9 +237,51 @@ export default function ContactsPage() {
       contact.name.toLowerCase().includes(value) ||
       contact.email.toLowerCase().includes(value) ||
       contact.subject.toLowerCase().includes(value) ||
-      contact.message.toLowerCase().includes(value)
+      contact.message.toLowerCase().includes(value) ||
+      contact.status.toLowerCase().includes(value) ||
+      (contact.isDeal ? "yes" : "no").includes(value)
     );
   });
+
+  /* =====================================================
+     STATUS LABEL
+  ===================================================== */
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case "in_progress":
+        return "In Progress";
+
+      default:
+        return status;
+    }
+  };
+
+  /* =====================================================
+     STATUS STYLE
+  ===================================================== */
+
+  const getStatusClass = (status: string) => {
+    switch (status) {
+      case "new":
+        return "bg-[#ffb646]/10 text-[#ff8a24] border-[#ffb646]/20";
+
+      case "contacted":
+        return "bg-blue-50 text-blue-600 border-blue-100";
+
+      case "in_progress":
+        return "bg-purple-50 text-purple-600 border-purple-100";
+
+      case "resolved":
+        return "bg-green-50 text-green-600 border-green-100";
+
+      case "closed":
+        return "bg-black/5 text-black/50 border-black/10";
+
+      default:
+        return "bg-black/5 text-black/50 border-black/10";
+    }
+  };
 
   /* =====================================================
      DATE FORMAT
@@ -227,6 +302,7 @@ export default function ContactsPage() {
     <>
       <main className="min-h-screen bg-[#fafafa] px-5 py-8 md:px-8 font-['Sora',sans-serif]">
         <div className="mx-auto max-w-[1500px]">
+
           {/* =================================================
               HEADER
           ================================================= */}
@@ -249,6 +325,7 @@ export default function ContactsPage() {
             {/* HEADER ACTIONS */}
 
             <div className="flex items-center gap-4">
+
               {/* REFRESH */}
 
               <button
@@ -285,7 +362,10 @@ export default function ContactsPage() {
 
           <div className="mb-6 rounded-[1.5rem] border border-black/10 bg-white p-4 shadow-sm">
             <div className="flex h-12 items-center gap-3 rounded-xl border border-black/10 bg-[#fafafa] px-4 transition-all focus-within:border-[#ffb646] focus-within:bg-white focus-within:ring-4 focus-within:ring-[#ffb646]/10">
-              <Search size={18} className="shrink-0 text-black/40" />
+              <Search
+                size={18}
+                className="shrink-0 text-black/40"
+              />
 
               <input
                 type="text"
@@ -302,12 +382,13 @@ export default function ContactsPage() {
           ================================================= */}
 
           <div className="overflow-hidden rounded-[1.5rem] border border-black/10 bg-white shadow-sm">
+
             {/* TABLE HEADER */}
 
             <div
               className="
                 hidden
-                grid-cols-[minmax(180px,1.4fr)_minmax(150px,1.3fr)_minmax(200px,1.7fr)_90px_120px_40px]
+                grid-cols-[minmax(180px,1.4fr)_minmax(150px,1.3fr)_minmax(200px,1.7fr)_100px_100px_120px_40px]
                 gap-4
                 border-b
                 border-black/5
@@ -326,6 +407,7 @@ export default function ContactsPage() {
               <span>Subject</span>
               <span>Message</span>
               <span>Status</span>
+              <span>Is Deal</span>
               <span>Date</span>
               <span />
             </div>
@@ -340,14 +422,19 @@ export default function ContactsPage() {
                   size={20}
                   className="animate-spin text-[#ff8a24]"
                 />
+
                 Loading enquiries...
               </div>
             ) : filteredContacts.length === 0 ? (
+
               /* EMPTY */
 
               <div className="px-6 py-20 text-center">
                 <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-[#ffb646]/10">
-                  <Mail size={24} className="text-[#ff8a24]" />
+                  <Mail
+                    size={24}
+                    className="text-[#ff8a24]"
+                  />
                 </div>
 
                 <p className="mt-4 text-base font-bold text-[#080808]">
@@ -358,7 +445,9 @@ export default function ContactsPage() {
                   Contact submissions will appear here.
                 </p>
               </div>
+
             ) : (
+
               /* CONTACT ROWS */
 
               <div className="divide-y divide-black/5">
@@ -368,6 +457,7 @@ export default function ContactsPage() {
                     onClick={() => openDetails(contact)}
                     className="cursor-pointer px-5 py-5 transition-colors hover:bg-black/[0.01] sm:px-6"
                   >
+
                     {/* =================================================
                         DESKTOP ROW
                     ================================================= */}
@@ -376,18 +466,22 @@ export default function ContactsPage() {
                       className="
                         hidden
                         min-w-0
-                        grid-cols-[minmax(180px,1.4fr)_minmax(150px,1.3fr)_minmax(200px,1.7fr)_90px_120px_40px]
+                        grid-cols-[minmax(180px,1.4fr)_minmax(150px,1.3fr)_minmax(200px,1.7fr)_100px_100px_120px_40px]
                         items-center
                         gap-4
                         md:grid
                       "
                     >
+
                       {/* CONTACT */}
 
                       <div className="min-w-0">
                         <div className="flex min-w-0 items-center gap-4">
+
                           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#ffb646]/10 text-[11px] font-bold text-[#ff8a24]">
-                            {contact.name.slice(0, 2).toUpperCase()}
+                            {contact.name
+                              .slice(0, 2)
+                              .toUpperCase()}
                           </div>
 
                           <div className="min-w-0 flex-1">
@@ -399,6 +493,7 @@ export default function ContactsPage() {
                               {contact.email}
                             </p>
                           </div>
+
                         </div>
                       </div>
 
@@ -428,15 +523,25 @@ export default function ContactsPage() {
 
                       <div className="min-w-0">
                         <span
+                          className={`inline-flex whitespace-nowrap rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide ${getStatusClass(
+                            contact.status
+                          )}`}
+                        >
+                          {getStatusLabel(contact.status)}
+                        </span>
+                      </div>
+
+                      {/* IS DEAL */}
+
+                      <div className="min-w-0">
+                        <span
                           className={`inline-flex whitespace-nowrap rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide ${
-                            contact.status === "new"
-                              ? "bg-[#ffb646]/10 text-[#ff8a24] border-[#ffb646]/20"
-                              : contact.status === "replied"
-                                ? "bg-green-50 text-green-600 border-green-100"
-                                : "bg-black/5 text-black/50 border-black/10"
+                            contact.isDeal
+                              ? "bg-green-50 text-green-600 border-green-100"
+                              : "bg-black/5 text-black/50 border-black/10"
                           }`}
                         >
-                          {contact.status}
+                          {contact.isDeal ? "Yes" : "No"}
                         </span>
                       </div>
 
@@ -444,8 +549,14 @@ export default function ContactsPage() {
 
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 whitespace-nowrap text-xs font-medium text-black/50">
-                          <CalendarDays size={14} className="shrink-0" />
-                          <span>{formatDate(contact.createdAt)}</span>
+                          <CalendarDays
+                            size={14}
+                            className="shrink-0"
+                          />
+
+                          <span>
+                            {formatDate(contact.createdAt)}
+                          </span>
                         </div>
                       </div>
 
@@ -460,7 +571,10 @@ export default function ContactsPage() {
                         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-black/40 transition-colors hover:bg-[#ffb646]/10 hover:text-[#ff8a24]"
                         title="View enquiry"
                       >
-                        <Eye size={18} strokeWidth={2} />
+                        <Eye
+                          size={18}
+                          strokeWidth={2}
+                        />
                       </button>
                     </div>
 
@@ -469,12 +583,17 @@ export default function ContactsPage() {
                     ================================================= */}
 
                     <div className="flex min-w-0 items-center justify-between gap-4 md:hidden">
+
                       <div className="flex min-w-0 items-center gap-4">
+
                         <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#ffb646]/10 text-xs font-bold text-[#ff8a24]">
-                          {contact.name.slice(0, 2).toUpperCase()}
+                          {contact.name
+                            .slice(0, 2)
+                            .toUpperCase()}
                         </div>
 
                         <div className="min-w-0">
+
                           <p className="truncate text-sm font-bold text-[#080808]">
                             {contact.name}
                           </p>
@@ -483,17 +602,35 @@ export default function ContactsPage() {
                             {contact.subject}
                           </p>
 
-                          <span
-                            className={`mt-1.5 inline-flex rounded-full border px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
-                              contact.status === "new"
-                                ? "bg-[#ffb646]/10 text-[#ff8a24] border-[#ffb646]/20"
-                                : contact.status === "replied"
+                          {/* STATUS + DEAL */}
+
+                          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+
+                            {/* STATUS */}
+
+                            <span
+                              className={`inline-flex rounded-full border px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${getStatusClass(
+                                contact.status
+                              )}`}
+                            >
+                              {getStatusLabel(contact.status)}
+                            </span>
+
+                            {/* IS DEAL */}
+
+                            <span
+                              className={`inline-flex rounded-full border px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
+                                contact.isDeal
                                   ? "bg-green-50 text-green-600 border-green-100"
                                   : "bg-black/5 text-black/50 border-black/10"
-                            }`}
-                          >
-                            {contact.status}
-                          </span>
+                              }`}
+                            >
+                              {contact.isDeal
+                                ? "Deal"
+                                : "Not Deal"}
+                            </span>
+
+                          </div>
                         </div>
                       </div>
 
@@ -505,7 +642,10 @@ export default function ContactsPage() {
                         }}
                         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-black/10 text-black/40 hover:border-[#ffb646] hover:bg-[#ffb646]/10 hover:text-[#ff8a24]"
                       >
-                        <Eye size={18} strokeWidth={2} />
+                        <Eye
+                          size={18}
+                          strokeWidth={2}
+                        />
                       </button>
                     </div>
                   </div>
@@ -520,10 +660,15 @@ export default function ContactsPage() {
 
           {!loading && filteredContacts.length > 0 && (
             <div className="mt-5 flex items-center justify-between px-2 text-xs font-medium text-black/45">
-              <span>Showing {filteredContacts.length} enquiries</span>
+              <span>
+                Showing {filteredContacts.length} enquiries
+              </span>
 
               <span className="font-bold text-[#080808]">
-                {contacts.filter((item) => item.status === "new").length} new
+                {contacts.filter(
+                  (item) => item.status === "new"
+                ).length}{" "}
+                new
               </span>
             </div>
           )}
@@ -531,7 +676,7 @@ export default function ContactsPage() {
       </main>
 
       {/* =====================================================
-         DETAIL DRAWER
+          DETAIL DRAWER
       ===================================================== */}
 
       {showDetails && selectedContact && (
@@ -543,9 +688,11 @@ export default function ContactsPage() {
             onClick={(event) => event.stopPropagation()}
             className="absolute right-0 top-0 h-full w-full max-w-[550px] overflow-y-auto bg-white shadow-[-20px_0_40px_rgba(0,0,0,0.1)] sm:rounded-l-[2.5rem]"
           >
+
             {/* DRAWER HEADER */}
 
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-black/10 bg-white/90 px-6 py-5 backdrop-blur-md sm:px-8">
+
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#ff8a24]">
                   Enquiry
@@ -561,19 +708,26 @@ export default function ContactsPage() {
                 onClick={closeDetails}
                 className="flex h-10 w-10 items-center justify-center rounded-full bg-black/5 text-black/40 transition hover:bg-[#080808] hover:text-white"
               >
-                <X size={20} strokeWidth={2} />
+                <X
+                  size={20}
+                  strokeWidth={2}
+                />
               </button>
             </div>
 
             {/* DRAWER CONTENT */}
 
             <div className="space-y-8 px-6 py-8 sm:px-8">
+
               {/* PROFILE */}
 
               <div className="rounded-[1.5rem] border border-black/5 bg-[#fafafa] p-6 shadow-sm">
                 <div className="flex items-center gap-5">
+
                   <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#ffb646]/10 text-base font-bold text-[#ff8a24]">
-                    {selectedContact.name.slice(0, 2).toUpperCase()}
+                    {selectedContact.name
+                      .slice(0, 2)
+                      .toUpperCase()}
                   </div>
 
                   <div className="min-w-0">
@@ -585,12 +739,14 @@ export default function ContactsPage() {
                       Contact ID #{selectedContact.id}
                     </p>
                   </div>
+
                 </div>
               </div>
 
               {/* CONTACT INFORMATION */}
 
               <section>
+
                 <div className="mb-4 flex items-center gap-2.5">
                   <User
                     size={18}
@@ -604,13 +760,18 @@ export default function ContactsPage() {
                 </div>
 
                 <div className="divide-y divide-black/5 rounded-[1.25rem] border border-black/10 overflow-hidden shadow-sm">
+
+                  {/* EMAIL */}
+
                   <div className="flex gap-4 p-5 bg-white">
+
                     <Mail
                       size={18}
                       className="mt-0.5 shrink-0 text-black/40"
                     />
 
                     <div className="min-w-0">
+
                       <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-black/40">
                         Email
                       </p>
@@ -618,23 +779,30 @@ export default function ContactsPage() {
                       <p className="mt-1.5 break-all text-sm font-semibold text-[#080808]">
                         {selectedContact.email}
                       </p>
+
                     </div>
                   </div>
 
+                  {/* PHONE */}
+
                   <div className="flex gap-4 p-5 bg-white">
+
                     <Phone
                       size={18}
                       className="mt-0.5 shrink-0 text-black/40"
                     />
 
                     <div>
+
                       <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-black/40">
                         Phone
                       </p>
 
                       <p className="mt-1.5 text-sm font-semibold text-[#080808]">
-                        {selectedContact.phone || "Not provided"}
+                        {selectedContact.phone ||
+                          "Not provided"}
                       </p>
+
                     </div>
                   </div>
                 </div>
@@ -643,6 +811,7 @@ export default function ContactsPage() {
               {/* ENQUIRY */}
 
               <section>
+
                 <div className="mb-4 flex items-center gap-2.5">
                   <MessageSquare
                     size={18}
@@ -656,7 +825,11 @@ export default function ContactsPage() {
                 </div>
 
                 <div className="rounded-[1.25rem] border border-black/10 overflow-hidden shadow-sm bg-white">
+
+                  {/* SUBJECT */}
+
                   <div className="border-b border-black/5 p-5 bg-[#fafafa]">
+
                     <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-black/40">
                       Subject
                     </p>
@@ -664,9 +837,13 @@ export default function ContactsPage() {
                     <p className="mt-1.5 break-words text-sm font-bold text-[#080808]">
                       {selectedContact.subject}
                     </p>
+
                   </div>
 
+                  {/* MESSAGE */}
+
                   <div className="p-5">
+
                     <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-black/40">
                       Message
                     </p>
@@ -674,111 +851,156 @@ export default function ContactsPage() {
                     <p className="mt-2.5 whitespace-pre-wrap break-words text-sm font-medium leading-relaxed text-[#080808]/80">
                       {selectedContact.message}
                     </p>
+
                   </div>
                 </div>
               </section>
 
-              {/* STATUS + DATE */}
+              {/* =================================================
+                  STATUS + IS DEAL + DATE
+              ================================================= */}
 
-              <section className="grid grid-cols-2 gap-4">
-                {/* STATUS */}
+              <section>
 
-                <div className="rounded-[1.25rem] border border-black/5 bg-[#fafafa] p-5 shadow-sm">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-black/40">
-                    Status
-                  </p>
+                <div className="grid grid-cols-2 gap-4">
 
-                  <select
-                    value={selectedContact.status}
-                    onChange={(event) => {
-                      const newStatus = event.target.value;
+                  {/* STATUS */}
 
-                      setSelectedContact((current) => {
-                        if (!current) {
-                          return current;
-                        }
+                  <div className="rounded-[1.25rem] border border-black/5 bg-[#fafafa] p-5 shadow-sm">
 
-                        return {
-                          ...current,
-                          status: newStatus,
-                        };
-                      });
+                    <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-black/40">
+                      Status
+                    </p>
 
-                      updateContact(selectedContact.id, {
-                        status: newStatus,
-                      });
-                    }}
-                    onClick={(event) => event.stopPropagation()}
-                    className="mt-2.5 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-xs font-bold uppercase tracking-wide text-[#080808] outline-none transition-all focus:border-[#ffb646] focus:ring-4 focus:ring-[#ffb646]/10"
-                  >
-                    <option value="new">New</option>
-                    <option value="contacted">Contacted</option>
-                    <option value="in_progress">In Progress</option>
-                    <option value="resolved">Resolved</option>
-                    <option value="closed">Closed</option>
-                  </select>
-                </div>
+                    <select
+                      value={editStatus}
+                      onChange={(event) => {
+                        setEditStatus(event.target.value);
+                      }}
+                      onClick={(event) =>
+                        event.stopPropagation()
+                      }
+                      disabled={updating}
+                      className="mt-2.5 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-xs font-bold uppercase tracking-wide text-[#080808] outline-none transition-all focus:border-[#ffb646] focus:ring-4 focus:ring-[#ffb646]/10 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <option value="new">
+                        New
+                      </option>
 
-                {/* DEAL */}
+                      <option value="contacted">
+                        Contacted
+                      </option>
 
-                <div className="rounded-[1.25rem] border border-black/5 bg-[#fafafa] p-5 shadow-sm">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-black/40">
-                    Deal
-                  </p>
+                      <option value="in_progress">
+                        In Progress
+                      </option>
 
-                  <select
-                    value={selectedContact.isDeal ? "yes" : "no"}
-                    onChange={(event) => {
-                      const newIsDeal = event.target.value === "yes";
+                      <option value="resolved">
+                        Resolved
+                      </option>
 
-                      setSelectedContact((current) => {
-                        if (!current) {
-                          return current;
-                        }
+                      <option value="closed">
+                        Closed
+                      </option>
+                    </select>
+                  </div>
 
-                        return {
-                          ...current,
-                          isDeal: newIsDeal,
-                        };
-                      });
+                  {/* IS DEAL */}
 
-                      updateContact(selectedContact.id, {
-                        isDeal: newIsDeal,
-                      });
-                    }}
-                    onClick={(event) => event.stopPropagation()}
-                    className="mt-2.5 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-xs font-bold uppercase tracking-wide text-[#080808] outline-none transition-all focus:border-[#ffb646] focus:ring-4 focus:ring-[#ffb646]/10"
-                  >
-                    <option value="no">No</option>
-                    <option value="yes">Yes</option>
-                  </select>
+                  <div className="rounded-[1.25rem] border border-black/5 bg-[#fafafa] p-5 shadow-sm">
+
+                    <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-black/40">
+                      Is Deal
+                    </p>
+
+                    <select
+                      value={editIsDeal ? "yes" : "no"}
+                      onChange={(event) => {
+                        setEditIsDeal(
+                          event.target.value === "yes"
+                        );
+                      }}
+                      onClick={(event) =>
+                        event.stopPropagation()
+                      }
+                      disabled={updating}
+                      className="mt-2.5 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-xs font-bold uppercase tracking-wide text-[#080808] outline-none transition-all focus:border-[#ffb646] focus:ring-4 focus:ring-[#ffb646]/10 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <option value="no">
+                        No
+                      </option>
+
+                      <option value="yes">
+                        Yes
+                      </option>
+                    </select>
+                  </div>
                 </div>
 
                 {/* SUBMITTED */}
 
-                <div className="rounded-[1.25rem] border border-black/5 bg-[#fafafa] p-5 shadow-sm">
+                <div className="mt-4 rounded-[1.25rem] border border-black/5 bg-[#fafafa] p-5 shadow-sm">
+
                   <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-black/40">
                     Submitted
                   </p>
 
                   <div className="mt-2.5 flex items-center gap-2 text-sm font-bold text-[#080808]">
-                    <CalendarDays size={16} className="text-black/40" />
 
-                    {formatDate(selectedContact.createdAt)}
+                    <CalendarDays
+                      size={16}
+                      className="text-black/40"
+                    />
+
+                    {formatDate(
+                      selectedContact.createdAt
+                    )}
                   </div>
                 </div>
+
+                {/* =================================================
+                    UPDATE BUTTON
+                ================================================= */}
+
+                <button
+                  type="button"
+                  disabled={updating}
+                  onClick={(event) => {
+                    event.stopPropagation();
+
+                    if (!selectedContact) {
+                      return;
+                    }
+
+                    updateContact(
+                      selectedContact.id,
+                      {
+                        status: editStatus,
+                        isDeal: editIsDeal,
+                      }
+                    );
+                  }}
+                  className="mt-4 w-full rounded-xl bg-[#ff8a24] py-4 text-sm font-bold text-white transition-all hover:bg-[#ffb646] hover:text-[#080808] hover:shadow-lg hover:shadow-[#ffb646]/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {updating
+                    ? "Updating..."
+                    : "Update"}
+                </button>
               </section>
 
               {/* CLOSE BUTTON */}
 
               <div className="pt-2">
+
                 <button
                   type="button"
                   onClick={closeDetails}
-                  className="w-full rounded-xl bg-[#080808] py-4 text-sm font-bold text-white transition-all hover:bg-[#ffb646] hover:text-[#080808] hover:shadow-lg hover:shadow-[#ffb646]/20 active:scale-[0.98]"
+                  disabled={updating}
+                  className="w-full rounded-xl bg-[#080808] py-4 text-sm font-bold text-white transition-all hover:bg-[#ffb646] hover:text-[#080808] hover:shadow-lg hover:shadow-[#ffb646]/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Close Details
                 </button>
+
               </div>
             </div>
           </aside>
