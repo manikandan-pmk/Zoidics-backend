@@ -51,15 +51,15 @@ export async function GET(request: NextRequest) {
     for (const activity of activities) {
       const scheduledAt = new Date(activity.scheduledAt);
 
-      // Only send reminders for meetings scheduled today in India.
-      if (
-        indiaDateKey(scheduledAt) !== todayInIndia ||
-        scheduledAt.getTime() > now.getTime() ||
-        activity.reminderSentAt
-      ) {
-        skipped++;
-        continue;
-      }
+      // Send reminders for meetings scheduled today in India,
+// including meetings whose scheduled time is still in the future.
+if (
+  indiaDateKey(scheduledAt) !== todayInIndia ||
+  activity.reminderSentAt
+) {
+  skipped++;
+  continue;
+}
 
       try {
         const lead = await LeadRepo.findOne({

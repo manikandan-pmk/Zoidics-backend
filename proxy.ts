@@ -70,6 +70,15 @@ export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const method = request.method;
 
+  // Allow meeting reminder cron API to authenticate
+// using CRON_SECRET inside its route handler.
+if (
+  pathname === "/api/cron/meeting-reminders" &&
+  method === "GET"
+) {
+  return NextResponse.next();
+}
+
   // =========================
   // PUBLIC GET API ROUTES
   // =========================
