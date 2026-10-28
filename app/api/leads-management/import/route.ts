@@ -348,7 +348,7 @@ export async function POST(request: NextRequest) {
         status: "new",
         lastCallResult: "not_called",
         priority: "medium",
-        interestLevel: "warm",
+        interestLevel: "interested",
         nextFollowUpAt: null,
         lastContactedAt: null,
       });
