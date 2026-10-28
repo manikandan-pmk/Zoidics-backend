@@ -40,7 +40,7 @@ export const AppDataSource = new DataSource({
 
   migrations: ["migrations/*.{ts,js}"],
 
-  synchronize: false,
+  synchronize: true,
 
   logging: false,
 });
