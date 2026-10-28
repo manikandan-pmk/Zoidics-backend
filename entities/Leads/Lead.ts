@@ -68,15 +68,9 @@ export class Lead {
   @Column({ type: "varchar", length: 100, nullable: true })
   source!: string | null;
 
+  // Pipeline status only. Display "lost" as "Dead" in the UI if preferred.
   @Column({ type: "varchar", length: 20, default: "new" })
-  status!:
-    | "new"
-    | "contacted"
-    | "interested"
-    | "follow_up"
-    | "converted"
-    | "not_interested"
-    | "lost";
+  status!: "new" | "contacted" | "follow_up" | "meeting" | "converted" | "lost";
 
   @Column({ type: "varchar", length: 20, default: "not_called" })
   lastCallResult!:
@@ -87,11 +81,12 @@ export class Lead {
     | "switched_off"
     | "call_back_later";
 
-  @Column({ type: "varchar", length: 10, default: "medium" })
-  priority!: "high" | "medium" | "low";
+  // Set these after the call result/interest is known; unanswered leads stay null.
+  @Column({ type: "varchar", length: 10, nullable: true, default: null })
+  priority!: "high" | "medium" | "low" | null;
 
-  @Column({ type: "varchar", length: 10, default: "warm" })
-  interestLevel!: "hot" | "warm" | "cold";
+  @Column({ type: "varchar", length: 20, nullable: true, default: null })
+  interestLevel!: "interested" | "not_interested" | null;
 
   // Notes are now reserved for actual notes only
   @Column({ type: "text", nullable: true })

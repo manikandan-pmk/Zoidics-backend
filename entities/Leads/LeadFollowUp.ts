@@ -43,6 +43,9 @@ export class LeadFollowUp {
   @Column({ type: "boolean", default: false })
   isCompleted!: boolean;
 
+  @Column({ type: "text", nullable: true })
+  resultNotes!: string | null; 
+
   @Column({ type: "datetime", nullable: true })
   reminderSentAt!: Date | null;
 

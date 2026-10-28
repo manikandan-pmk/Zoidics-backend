@@ -1,7 +1,7 @@
+
 import { NextRequest, NextResponse } from "next/server";
 import { LeadRepo, LeadFollowUpRepo } from "@/lib/repository";
 import { sendMeetingReminder } from "@/lib/meetingMailer";
-
 
 function indiaDateKey(date: Date): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -29,15 +29,22 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const now = new Date();
-    const todayInIndia = indiaDateKey(now);
+    const todayInIndia = indiaDateKey(new Date());
 
+    // Fetch both Follow-up and Meeting activities.
     const activities = await LeadFollowUpRepo.find({
-      where: {
-        activityType: "meeting",
-        isCompleted: false,
-        reminderStatus: "pending",
-      },
+      where: [
+        {
+          activityType: "follow_up",
+          isCompleted: false,
+          reminderStatus: "pending",
+        },
+        {
+          activityType: "meeting",
+          isCompleted: false,
+          reminderStatus: "pending",
+        },
+      ],
       order: {
         scheduledAt: "ASC",
         id: "ASC",
@@ -51,15 +58,14 @@ export async function GET(request: NextRequest) {
     for (const activity of activities) {
       const scheduledAt = new Date(activity.scheduledAt);
 
-      // Send reminders for meetings scheduled today in India,
-// including meetings whose scheduled time is still in the future.
-if (
-  indiaDateKey(scheduledAt) !== todayInIndia ||
-  activity.reminderSentAt
-) {
-  skipped++;
-  continue;
-}
+      // Process only activities scheduled for today in India.
+      if (
+        indiaDateKey(scheduledAt) !== todayInIndia ||
+        activity.reminderSentAt
+      ) {
+        skipped++;
+        continue;
+      }
 
       try {
         const lead = await LeadRepo.findOne({
@@ -70,9 +76,9 @@ if (
           throw new Error(`Lead ${activity.leadId} was not found.`);
         }
 
-        // Send the email before marking the reminder as sent.
         await sendMeetingReminder({
           id: activity.id,
+          activityType: activity.activityType,
           businessName: lead.businessName,
           contactPerson: lead.contactPerson,
           phone: lead.phone,
@@ -92,14 +98,16 @@ if (
       } catch (error) {
         activity.reminderStatus = "failed";
         activity.reminderError =
-          error instanceof Error ? error.message : "Email delivery failed";
+          error instanceof Error
+            ? error.message
+            : "Email delivery failed";
         activity.reminderAttempts += 1;
 
         await LeadFollowUpRepo.save(activity);
         failed++;
 
         console.error(
-          `Meeting reminder failed for activity ${activity.id}:`,
+          `Reminder failed for ${activity.activityType} activity ${activity.id}:`,
           error,
         );
       }
@@ -113,10 +121,13 @@ if (
       skipped,
     });
   } catch (error) {
-    console.error("Meeting reminder cron failed:", error);
+    console.error("Follow-up reminder cron failed:", error);
 
     return NextResponse.json(
-      { success: false, message: "Failed to process meeting reminders." },
+      {
+        success: false,
+        message: "Failed to process follow-up reminders.",
+      },
       { status: 500 },
     );
   }

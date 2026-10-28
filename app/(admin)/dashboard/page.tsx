@@ -222,7 +222,7 @@ export default function DashboardPage() {
           <div>
 
             <h2 className="text-3xl font-bold tracking-tight text-[#080808] md:text-4xl">
-              {greeting}, Ajith.
+              {greeting}, Admin.
             </h2>
 
             <p className="mt-3 max-w-xl text-sm font-medium leading-relaxed text-black/50">
@@ -535,117 +535,6 @@ export default function DashboardPage() {
 
       </div>
 
-      {/* ===================================================
-          LEAD OVERVIEW
-      =================================================== */}
-
-      <div className="mt-6 grid gap-5 md:grid-cols-2">
-
-        {/* Client Enquiries */}
-
-        <button
-          type="button"
-          onClick={() =>
-            navigateTo("/admin/enquiries")
-          }
-          className="group rounded-[1.5rem] border border-black/10 bg-white p-6 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-black/20 hover:shadow-md"
-        >
-
-          <div className="flex items-start justify-between">
-
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#f5f5f5]">
-              <MessageSquare className="h-5 w-5 text-[#777]" />
-            </div>
-
-            <ArrowUpRight className="h-4 w-4 text-black/20 transition group-hover:text-[#ff8a24]" />
-
-          </div>
-
-          <p className="mt-5 text-sm font-bold text-[#080808]">
-            Client Enquiries
-          </p>
-
-          <p className="mt-1 text-xs leading-relaxed text-black/40">
-            Contact Us messages submitted by
-            potential clients.
-          </p>
-
-          <div className="mt-5 flex items-end gap-2">
-
-            <span className="text-3xl font-bold text-[#080808]">
-              {loading
-                ? "..."
-                : stats.clientEnquiries}
-            </span>
-
-            <span className="mb-1 text-xs font-medium text-black/40">
-              total enquiries
-            </span>
-
-          </div>
-
-          {stats.newClientEnquiries > 0 && (
-            <p className="mt-3 text-xs font-bold text-[#ff8a24]">
-              {stats.newClientEnquiries} new
-            </p>
-          )}
-
-        </button>
-
-        {/* ChatBot Leads */}
-
-        <button
-          type="button"
-          onClick={() =>
-            navigateTo(
-              "/admin/chatbot-leads"
-            )
-          }
-          className="group rounded-[1.5rem] border border-black/10 bg-white p-6 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-black/20 hover:shadow-md"
-        >
-
-          <div className="flex items-start justify-between">
-
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#f5f5f5]">
-              <Bot className="h-5 w-5 text-[#777]" />
-            </div>
-
-            <ArrowUpRight className="h-4 w-4 text-black/20 transition group-hover:text-[#ff8a24]" />
-
-          </div>
-
-          <p className="mt-5 text-sm font-bold text-[#080808]">
-            ChatBot Leads
-          </p>
-
-          <p className="mt-1 text-xs leading-relaxed text-black/40">
-            Leads collected through your website
-            chatbot.
-          </p>
-
-          <div className="mt-5 flex items-end gap-2">
-
-            <span className="text-3xl font-bold text-[#080808]">
-              {loading
-                ? "..."
-                : stats.chatbotLeads}
-            </span>
-
-            <span className="mb-1 text-xs font-medium text-black/40">
-              total leads
-            </span>
-
-          </div>
-
-          {stats.activeChatbotLeads > 0 && (
-            <p className="mt-3 text-xs font-bold text-[#ff8a24]">
-              {stats.activeChatbotLeads} active
-            </p>
-          )}
-
-        </button>
-
-      </div>
 
     </div>
   );

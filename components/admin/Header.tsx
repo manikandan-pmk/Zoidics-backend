@@ -1,3 +1,4 @@
+
 "use client";
 
 import {
@@ -20,62 +21,67 @@ export default function Header() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
 
- const handleLogout = async () => {
-  if (loggingOut) return;
+  const handleLogout = async () => {
+    if (loggingOut) return;
 
-  try {
-    setLoggingOut(true);
-    setProfileOpen(false);
+    try {
+      setLoggingOut(true);
+      setProfileOpen(false);
 
-    const response = await axios.post(
-      "/api/auth/logout",
-      {},
-      {
-        withCredentials: true,
-      }
-    );
-
-    const data = response.data;
-
-    if (!data?.success) {
-      throw new Error(data?.message || "Logout failed");
-    }
-
-    // JWT cookie is cleared by the server.
-    router.replace("/");
-    router.refresh();
-  } catch (error) {
-    console.error("Logout error:", error);
-
-    if (axios.isAxiosError(error)) {
-      console.error(
-        "Logout API error:",
-        error.response?.data?.message || error.message
+      const response = await axios.post(
+        "/api/auth/logout",
+        {},
+        {
+          withCredentials: true,
+        }
       );
-    }
 
-    setLoggingOut(false);
-  }
-};
+      const data = response.data;
+
+      if (!data?.success) {
+        throw new Error(data?.message || "Logout failed");
+      }
+
+      // JWT cookie is cleared by the server.
+      router.replace("/");
+      router.refresh();
+    } catch (error) {
+      console.error("Logout error:", error);
+
+      if (axios.isAxiosError(error)) {
+        console.error(
+          "Logout API error:",
+          error.response?.data?.message || error.message
+        );
+      }
+
+      setLoggingOut(false);
+    }
+  };
+
+  const handleMobileMenu = () => {
+    window.dispatchEvent(
+      new CustomEvent("zoidics:toggle-sidebar")
+    );
+  };
 
   return (
-    <header className="sticky top-0 z-40 flex h-[80px] items-center justify-between border-b border-black/[0.08] bg-white/90 px-5 backdrop-blur-xl md:px-8 font-['Sora',sans-serif]">
+    <header className="sticky top-0 z-40 flex h-16 w-full items-center justify-between border-b border-black/[0.08] bg-white/90 px-3 backdrop-blur-xl sm:h-[72px] sm:px-5 md:px-8 lg:h-[80px] font-['Sora',sans-serif]">
       {/* LEFT */}
-      <div className="flex items-center gap-4">
+      <div className="flex min-w-0 items-center gap-2 sm:gap-4">
         {/* MOBILE MENU */}
         <button
           type="button"
           aria-label="Open menu"
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-black/10 text-black/60 lg:hidden"
+          onClick={handleMobileMenu}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-black/10 text-black/60 transition hover:bg-black/[0.04] lg:hidden"
         >
           <Menu size={18} />
         </button>
-
-     
       </div>
 
       {/* RIGHT */}
-      <div className="flex items-center gap-2.5">
+      <div className="flex shrink-0 items-center gap-1.5 sm:gap-2.5">
         {/* SEARCH */}
         <button
           type="button"
@@ -89,7 +95,7 @@ export default function Header() {
         <button
           type="button"
           aria-label="Notifications"
-          className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-black/[0.08] bg-white text-black/45 transition hover:border-black/15 hover:bg-black/[0.025] hover:text-black"
+          className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-black/[0.08] bg-white text-black/45 transition hover:border-black/15 hover:bg-black/[0.025] hover:text-black"
         >
           <Bell size={17} strokeWidth={1.8} />
 
@@ -103,11 +109,14 @@ export default function Header() {
         <div className="relative">
           <button
             type="button"
-            onClick={() => setProfileOpen((current) => !current)}
-            className="flex items-center gap-2.5 rounded-xl px-2 py-1.5 transition hover:bg-black/[0.035]"
+            onClick={() =>
+              setProfileOpen((current) => !current)
+            }
+            aria-expanded={profileOpen}
+            className="flex items-center gap-1.5 rounded-xl px-1.5 py-1.5 transition hover:bg-black/[0.035] sm:gap-2.5 sm:px-2"
           >
             {/* AVATAR */}
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#080808] text-[11px] font-bold text-white">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#080808] text-[11px] font-bold text-white">
               AD
             </div>
 
@@ -132,11 +141,11 @@ export default function Header() {
 
           {/* PROFILE DROPDOWN */}
           {profileOpen && (
-            <div className="absolute right-0 top-[52px] w-[240px] overflow-hidden rounded-2xl border border-black/[0.08] bg-white shadow-[0_15px_50px_rgba(0,0,0,0.08)]">
+            <div className="absolute right-0 top-[52px] z-50 w-[min(240px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-black/[0.08] bg-white shadow-[0_15px_50px_rgba(0,0,0,0.08)]">
               {/* PROFILE HEADER */}
               <div className="border-b border-black/[0.07] p-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#080808] text-xs font-bold text-white">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#080808] text-xs font-bold text-white">
                     AD
                   </div>
 
@@ -172,7 +181,10 @@ export default function Header() {
                   className="mt-1 flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[13px] font-medium text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {loggingOut ? (
-                    <Loader2 size={15} className="animate-spin" />
+                    <Loader2
+                      size={15}
+                      className="animate-spin"
+                    />
                   ) : (
                     <LogOut size={15} strokeWidth={1.8} />
                   )}

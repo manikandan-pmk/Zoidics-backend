@@ -1,7 +1,9 @@
+
 "use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   FolderKanban,
@@ -11,7 +13,8 @@ import {
   FileText,
   Settings,
   ChevronRight,
-  UsersRound
+  UsersRound,
+  X,
 } from "lucide-react";
 
 const menuItems = [
@@ -45,16 +48,16 @@ const menuItems = [
     href: "/dashboard/contacts",
     icon: MessageSquare,
   },
-   {
+  {
     label: "ChatBot Leads",
     href: "/dashboard/chatbot-leads",
     icon: Settings,
   },
   {
-  label: "Lead Management",
-  href: "/dashboard/leads",
-  icon: UsersRound,
-},
+    label: "Lead Management",
+    href: "/dashboard/leads",
+    icon: UsersRound,
+  },
   {
     label: "Settings",
     href: "/dashboard/settings",
@@ -64,20 +67,66 @@ const menuItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
-  return (
-    <aside className="fixed left-0 top-0 z-50 hidden h-screen w-[248px] flex-col border-r border-black/[0.08] bg-white lg:flex font-['Sora',sans-serif]">
+  useEffect(() => {
+    const handleToggle = () => {
+      setMobileOpen((current) => !current);
+    };
+
+    const handleClose = () => {
+      setMobileOpen(false);
+    };
+
+    window.addEventListener(
+      "zoidics:toggle-sidebar",
+      handleToggle
+    );
+
+    window.addEventListener(
+      "zoidics:close-sidebar",
+      handleClose
+    );
+
+    return () => {
+      window.removeEventListener(
+        "zoidics:toggle-sidebar",
+        handleToggle
+      );
+
+      window.removeEventListener(
+        "zoidics:close-sidebar",
+        handleClose
+      );
+    };
+  }, []);
+
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
+  const sidebarContent = (
+    <>
       {/* LOGO */}
-      <div className="flex h-[80px] shrink-0 items-center border-b border-black/[0.08] px-6">
-        <div className="flex flex-col justify-center">
+      <div className="flex h-[80px] shrink-0 items-center justify-between border-b border-black/[0.08] px-6">
+        <div className="flex min-w-0 flex-col justify-center">
           {/* Logo Image */}
           <img
             src="/logo.png"
             alt="Zoidics Logo"
-            className="h-20 w-auto object-contain"
+            className="h-20 max-w-full w-auto object-contain"
           />
-         
         </div>
+
+        {/* MOBILE CLOSE BUTTON */}
+        <button
+          type="button"
+          aria-label="Close menu"
+          onClick={() => setMobileOpen(false)}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-black/60 transition hover:bg-black/[0.05] lg:hidden"
+        >
+          <X size={20} />
+        </button>
       </div>
 
       {/* NAVIGATION */}
@@ -90,7 +139,7 @@ export default function Sidebar() {
           {menuItems.map((item) => {
             const Icon = item.icon;
 
-            // Fixed the active path logic to match your hrefs
+            // Existing active path logic
             const isActive =
               item.href === "/dashboard"
                 ? pathname === "/dashboard"
@@ -100,7 +149,8 @@ export default function Sidebar() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`group relative flex h-[44px] items-center gap-3 rounded-xl px-3 text-[13px] transition-all duration-200 ${
+                onClick={() => setMobileOpen(false)}
+                className={`group relative flex min-h-[44px] items-center gap-3 rounded-xl px-3 py-2 text-[13px] transition-all duration-200 ${
                   isActive
                     ? "bg-[#ffb646]/10 text-[#080808] font-bold"
                     : "text-black/60 font-medium hover:bg-black/[0.035] hover:text-[#080808]"
@@ -121,13 +171,15 @@ export default function Sidebar() {
                   }`}
                 />
 
-                <span className="flex-1">{item.label}</span>
+                <span className="min-w-0 flex-1">
+                  {item.label}
+                </span>
 
                 {isActive && (
                   <ChevronRight
                     size={15}
                     strokeWidth={2.5}
-                    className="text-[#ffb646]"
+                    className="shrink-0 text-[#ffb646]"
                   />
                 )}
               </Link>
@@ -137,24 +189,44 @@ export default function Sidebar() {
       </nav>
 
       {/* BOTTOM WIDGET */}
-      <div className="border-t border-black/[0.08] p-4">
+      <div className="shrink-0 border-t border-black/[0.08] p-4">
         <div className="rounded-xl border border-black/[0.06] bg-black/[0.02] p-3 transition-colors hover:bg-black/[0.04]">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#080808] text-[12px] font-bold text-[#ffb646] shadow-sm">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#080808] text-[12px] font-bold text-[#ffb646] shadow-sm">
               Z
             </div>
 
-            <div className="min-w-0">
-              <p className="text-xs font-bold text-[#080808] truncate">
-                Zoidics Studio
-              </p>
-              <p className="mt-0.5 text-[10px] font-medium text-black/40 truncate">
-                Portfolio Management
-              </p>
-            </div>
+            
           </div>
         </div>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* DESKTOP SIDEBAR */}
+      <aside className="fixed left-0 top-0 z-50 hidden h-screen w-[248px] flex-col border-r border-black/[0.08] bg-white font-['Sora',sans-serif] lg:flex">
+        {sidebarContent}
+      </aside>
+
+      {/* MOBILE AND TABLET SIDEBAR */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-[60] lg:hidden">
+          {/* BACKDROP */}
+          <button
+            type="button"
+            aria-label="Close navigation"
+            onClick={() => setMobileOpen(false)}
+            className="absolute inset-0 h-full w-full bg-black/40 backdrop-blur-[2px]"
+          />
+
+          {/* SLIDE-IN DRAWER */}
+          <aside className="absolute inset-y-0 left-0 flex h-full w-[min(300px,85vw)] flex-col border-r border-black/[0.08] bg-white shadow-2xl font-['Sora',sans-serif]">
+            {sidebarContent}
+          </aside>
+        </div>
+      )}
+    </>
   );
 }

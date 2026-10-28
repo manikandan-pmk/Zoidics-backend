@@ -11,15 +11,18 @@ import {
 const allowedStatuses = [
   "new",
   "contacted",
-  "interested",
   "follow_up",
+  "meeting",
   "converted",
-  "not_interested",
   "lost",
 ] as const;
 
 const allowedPriorities = ["high", "medium", "low"] as const;
-const allowedInterests = ["hot", "warm", "cold"] as const;
+
+const allowedInterests = [
+  "interested",
+  "not_interested",
+] as const;
 
 const allowedCallResults = [
   "not_called",
@@ -118,10 +121,10 @@ export async function GET(
       return fail("Lead not found.", 404);
     }
 
+// Fetch ALL follow-ups and meetings, including completed activities.
     const activities = await LeadFollowUpRepo.find({
       where: {
         leadId: id,
-        isCompleted: false,
       },
       order: {
         scheduledAt: "DESC",
@@ -129,8 +132,10 @@ export async function GET(
       },
     });
 
+    // Keep the latest active activity for the existing popup fields.
     const activity = activities.find(
-      (item) => item.reminderStatus !== "cancelled",
+      (item) =>
+        !item.isCompleted && item.reminderStatus !== "cancelled",
     );
 
     return NextResponse.json(
@@ -138,13 +143,14 @@ export async function GET(
         success: true,
         data: {
           ...lead,
+          activities,
           activityType: activity?.activityType ?? "follow_up",
           activityNotes: activity?.notes ?? null,
-          scheduledAt:
-            activity?.scheduledAt ?? lead.nextFollowUpAt,
+          scheduledAt: activity?.scheduledAt ?? lead.nextFollowUpAt,
           reminderStatus: activity?.reminderStatus ?? null,
           reminderSentAt: activity?.reminderSentAt ?? null,
         },
+        activities,
       },
       {
         status: 200,
@@ -155,9 +161,13 @@ export async function GET(
 
     return NextResponse.json(
       {
-        success: false,
-        message: "Failed to load lead.",
-      },
+      success: false,
+      message: "Failed to load lead.",
+      debug:
+        error instanceof Error
+          ? error.message
+          : String(error),
+    },
       { status: 500 },
     );
   }
@@ -202,6 +212,9 @@ export async function PATCH(
       "lastCallResult",
       "activityType",
       "activityNotes",
+      "resultNotes",
+      "activityId",
+      "completeActivity",
     ]);
 
     const unknownKeys = Object.keys(input).filter(
@@ -228,26 +241,32 @@ export async function PATCH(
     ) {
       return fail("Invalid lead status.", 400);
     }
+    console.log("[PATCH LEAD DEBUG]", {
+  statusReceived: input.status,
+  allowedStatuses,
+});
 
-    if (
-      "priority" in input &&
-      (typeof input.priority !== "string" ||
-        !allowedPriorities.includes(
-          input.priority as (typeof allowedPriorities)[number],
-        ))
-    ) {
-      return fail("Invalid lead priority.", 400);
-    }
+   if (
+  "priority" in input &&
+  input.priority !== null &&
+  (typeof input.priority !== "string" ||
+    !allowedPriorities.includes(
+      input.priority as (typeof allowedPriorities)[number],
+    ))
+) {
+  return fail("Invalid lead priority.", 400);
+}
 
-    if (
-      "interestLevel" in input &&
-      (typeof input.interestLevel !== "string" ||
-        !allowedInterests.includes(
-          input.interestLevel as (typeof allowedInterests)[number],
-        ))
-    ) {
-      return fail("Invalid interest level.", 400);
-    }
+if (
+  "interestLevel" in input &&
+  input.interestLevel !== null &&
+  (typeof input.interestLevel !== "string" ||
+    !allowedInterests.includes(
+      input.interestLevel as (typeof allowedInterests)[number],
+    ))
+) {
+  return fail("Invalid interest level.", 400);
+}
 
     let address: string | null | undefined;
     let city: string | null | undefined;
@@ -328,6 +347,38 @@ export async function PATCH(
       }
     }
 
+    let resultNotes: string | null | undefined;
+
+if ("resultNotes" in input) {
+  resultNotes = parseNullableText(input.resultNotes, 10000);
+
+  if (resultNotes === undefined) {
+    return fail(
+      "Result notes must be text with at most 10,000 characters.",
+      400
+    );
+  }
+}
+
+    if (
+      "activityId" in input &&
+      (!Number.isSafeInteger(Number(input.activityId)) ||
+        Number(input.activityId) <= 0)
+    ) {
+      return fail("Invalid activity ID.", 400);
+    }
+
+    if (
+      "completeActivity" in input &&
+      typeof input.completeActivity !== "boolean"
+    ) {
+      return fail("completeActivity must be a boolean.", 400);
+    }
+
+    if (input.completeActivity === true && !("activityId" in input)) {
+      return fail("An activity ID is required to complete an activity.", 400);
+    }
+
     const result = await LeadRepo.manager.transaction(async (manager) => {
       const leadRepository = manager.getRepository(LeadRepo.target) as typeof LeadRepo;
       const callRepository = manager.getRepository(LeadCallRepo.target) as typeof LeadCallRepo;
@@ -359,6 +410,30 @@ export async function PATCH(
       const currentActivity = currentActivities.find(
         (item) => item.reminderStatus !== "cancelled",
       );
+
+      // Complete only the activity explicitly selected by the UI.
+      // Keep its original notes and scheduled date as history.
+      if (input.completeActivity === true) {
+        const activity = await followUpRepository.findOne({
+          where: {
+            id: Number(input.activityId),
+            leadId: lead.id,
+          },
+          lock: { mode: "pessimistic_write" },
+        });
+
+        if (!activity) {
+          throw new Error("ACTIVITY_NOT_FOUND");
+        }
+
+        if (activity.isCompleted || activity.reminderStatus === "cancelled") {
+          throw new Error("ACTIVITY_ALREADY_COMPLETED");
+        }
+
+        activity.resultNotes = resultNotes ?? null;
+        activity.isCompleted = true;
+        await followUpRepository.save(activity);
+      }
 
       // Update lead information.
       if ("status" in input) {
@@ -399,16 +474,22 @@ export async function PATCH(
     callRepository.create({
       leadId: lead.id,
       result: callResult,
-      notes: null,
+      notes: resultNotes ?? null,
     }),
   );
 }
       }
 
-      const hasScheduleChange =
-        "nextFollowUpAt" in input ||
-        "activityType" in input ||
-        "activityNotes" in input;
+
+      // Keep interest and priority consistent with the final call result.
+if (lead.lastCallResult !== "answered") {
+  lead.interestLevel = null;
+  lead.priority = null;
+} else if (lead.interestLevel === "interested") {
+  lead.priority = lead.priority ?? "medium";
+} else {
+  lead.priority = null;
+}
 
       const scheduledAt =
         nextFollowUpAt !== undefined
@@ -426,8 +507,28 @@ export async function PATCH(
           ? activityNotes
           : currentActivity?.notes ?? null;
 
+      // The frontend may submit the current activity fields on every save.
+      // Create a new history row only if the schedule actually changed.
+      const hasScheduleInput =
+        "nextFollowUpAt" in input ||
+        "activityType" in input ||
+        "activityNotes" in input;
+
+      const scheduleActuallyChanged =
+        hasScheduleInput &&
+        input.completeActivity !== true &&
+        (
+          !currentActivity ||
+          (nextFollowUpAt !== undefined &&
+            nextFollowUpAt?.getTime() !== currentActivity.scheduledAt?.getTime()) ||
+          ("activityType" in input &&
+            activityType !== currentActivity.activityType) ||
+          ("activityNotes" in input &&
+            (finalActivityNotes ?? null) !== (currentActivity.notes ?? null))
+        );
+
       if (
-        hasScheduleChange &&
+        scheduleActuallyChanged &&
         activityType === "meeting" &&
         !scheduledAt
       ) {
@@ -435,34 +536,21 @@ export async function PATCH(
       }
 
       if (
-        hasScheduleChange &&
+        scheduleActuallyChanged &&
         scheduledAt &&
         scheduledAt.getTime() <= Date.now()
       ) {
         throw new Error("FOLLOW_UP_MUST_BE_FUTURE");
       }
 
-      if (hasScheduleChange) {
-        // Cancel previous outstanding reminders.
-        const activeActivities = await followUpRepository.find({
-          where: {
-            leadId: lead.id,
-            isCompleted: false,
-          },
-          lock: { mode: "pessimistic_write" },
-        });
-
-        for (const activity of activeActivities) {
-          activity.reminderStatus = "cancelled";
-          await followUpRepository.save(activity);
-        }
-
+      if (scheduleActuallyChanged) {
         if (scheduledAt) {
           const newActivity = followUpRepository.create({
             leadId: lead.id,
             activityType,
             scheduledAt,
             notes: finalActivityNotes,
+            resultNotes: null,
             isCompleted: false,
             reminderSentAt: null,
             reminderStatus: "pending",
@@ -471,16 +559,34 @@ export async function PATCH(
           });
 
           await followUpRepository.save(newActivity);
-
           lead.nextFollowUpAt = scheduledAt;
 
-          if (lead.status !== "converted") {
+          // Automatically set follow_up only when the user did not explicitly
+          // choose a lead status in this request.
+          if (
+            !("status" in input) &&
+            lead.status !== "converted" &&
+            lead.status !== "lost"
+          ) {
             lead.status = "follow_up";
           }
         } else if (nextFollowUpAt === null) {
-          // Clearing the schedule cancels outstanding reminders.
+          // Clear the summary date only; preserve activity history.
           lead.nextFollowUpAt = null;
         }
+      }
+
+      // If an activity was completed, point the lead summary at the next
+      // remaining active activity rather than the completed one.
+      if (input.completeActivity === true) {
+        const remainingActivities = await followUpRepository.find({
+          where: { leadId: lead.id, isCompleted: false },
+          order: { scheduledAt: "ASC", id: "ASC" },
+        });
+        const nextActivity = remainingActivities.find(
+          (item) => item.reminderStatus !== "cancelled",
+        );
+        lead.nextFollowUpAt = nextActivity?.scheduledAt ?? null;
       }
 
       const contactedStatuses: string[] = [
@@ -517,7 +623,7 @@ export async function PATCH(
       return {
         lead: savedLead,
         activity: latestActivity,
-        scheduleChanged: hasScheduleChange,
+        scheduleChanged: scheduleActuallyChanged,
       };
     });
 
@@ -560,9 +666,18 @@ export async function PATCH(
           400,
         );
       }
+
+      if (error.message === "ACTIVITY_NOT_FOUND") {
+        return fail("Activity not found for this lead.", 404);
+      }
+
+      if (error.message === "ACTIVITY_ALREADY_COMPLETED") {
+        return fail("This activity is already completed or cancelled.", 409);
+      }
     }
 
     console.error("Lead [id] route error:", error);
+    console.error("[PATCH LEAD UPDATE ERROR]", error);
 
     return NextResponse.json(
       {

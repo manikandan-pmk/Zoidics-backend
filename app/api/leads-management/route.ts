@@ -6,6 +6,7 @@ import {
   LeadCampaignRepo,
   LeadCategoryRepo,
   WhatsAppTemplateRepo,
+  LeadFollowUpRepo,
 } from "@/lib/repository";
 
 
@@ -82,7 +83,7 @@ export async function GET(request: NextRequest) {
     const search = (params.get("search") || "").trim();
     const campaignId = params.get("campaignId");
     const status = params.get("status") || "";
-    const priority = params.get("priority") || "";
+    // const priority = params.get("priority") || "";
 
     const repository = LeadRepo;
 
@@ -127,15 +128,14 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const validStatuses = [
-      "new",
-      "contacted",
-      "interested",
-      "follow_up",
-      "converted",
-      "not_interested",
-      "lost",
-    ];
+ const validStatuses = [
+  "new",
+  "contacted",
+  "follow_up",
+  "meeting",
+  "converted",
+  "lost",
+];
 
     if (status) {
       if (!validStatuses.includes(status)) {
@@ -153,30 +153,85 @@ export async function GET(request: NextRequest) {
 
     const validPriorities = ["high", "medium", "low"];
 
-    if (priority) {
-      if (!validPriorities.includes(priority)) {
-        return NextResponse.json(
-          {
-            success: false,
-            message: "Invalid lead priority.",
-          },
-          { status: 400 },
-        );
-      }
+    // if (priority) {
+    //   if (!validPriorities.includes(priority)) {
+    //     return NextResponse.json(
+    //       {
+    //         success: false,
+    //         message: "Invalid lead priority.",
+    //       },
+    //       { status: 400 },
+    //     );
+    //   }
 
-      query.andWhere("lead.priority = :priority", { priority });
-    }
+    //   query.andWhere("lead.priority = :priority", { priority });
+    // }
 
-    const [leads, total] = await query
-      .skip((page - 1) * limit)
-      .take(limit)
-      .getManyAndCount();
+   const [leads, total] = await query
+  .skip((page - 1) * limit)
+  .take(limit)
+  .getManyAndCount();
 
-    return NextResponse.json(
-      {
-        success: true,
-        data: leads.map(formatLead),
-        pagination: {
+// Count all leads matching the current search and campaign filters,
+// without pagination.
+const totalLeads = await query.clone().getCount();
+
+// Count all converted leads matching the current search and campaign filters.
+const convertedQuery = query.clone();
+convertedQuery.andWhere("lead.status = :convertedStatus", {
+  convertedStatus: "converted",
+});
+const totalConverted = await convertedQuery.getCount();
+
+// Count all follow-up and meeting activities across matching leads,
+// not just activities belonging to the current page.
+const activityQuery = LeadFollowUpRepo.createQueryBuilder("activity")
+  .innerJoin("activity.lead", "lead");
+
+if (search) {
+  activityQuery.andWhere(
+    `(
+      lead.businessName LIKE :activitySearch
+      OR lead.phone LIKE :activitySearch
+      OR lead.email LIKE :activitySearch
+      OR lead.contactPerson LIKE :activitySearch
+      OR lead.notes LIKE :activitySearch
+    )`,
+    { activitySearch: `%${search}%` },
+  );
+}
+
+if (campaignId) {
+  activityQuery.andWhere("lead.campaignId = :activityCampaignId", {
+    activityCampaignId: Number(campaignId),
+  });
+}
+
+const totalFollowUps = await activityQuery
+  .clone()
+  .andWhere("activity.activityType = :followUpType", {
+    followUpType: "follow_up",
+  })
+  .getCount();
+
+const totalMeetings = await activityQuery
+  .clone()
+  .andWhere("activity.activityType = :meetingType", {
+    meetingType: "meeting",
+  })
+  .getCount();
+
+   return NextResponse.json(
+  {
+    success: true,
+    data: leads.map(formatLead),
+    stats: {
+      totalLeads,
+      totalConverted,
+      totalFollowUps,
+      totalMeetings,
+    },
+    pagination: {
           page,
           limit,
           total,
@@ -406,11 +461,11 @@ export async function POST(request: NextRequest) {
         source: "Manual Entry",
         notes: notes || null,
         status: "new",
-        lastCallResult: "not_called",
-        priority: "medium",
-        interestLevel: "warm",
-        nextFollowUpAt: null,
-        lastContactedAt: null,
+lastCallResult: "not_called",
+priority: null,
+interestLevel: null,
+nextFollowUpAt: null,
+lastContactedAt: null,
       });
 
       const savedLead = await leadRepository.save(lead);
